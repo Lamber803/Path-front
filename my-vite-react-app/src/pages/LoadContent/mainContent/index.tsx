@@ -1,19 +1,28 @@
-import React, { useEffect, useState, useCallback } from "react";
-import { Editor } from "@tinymce/tinymce-react";
+import React, { useEffect, useState } from "react";
 import axios from "axios";
-import MyUploadAdapterPlugin from "../../../components/MyUploadAdapterPlugin"; // 引入自定义上传适配器插件
+import { useLocation } from "react-router-dom"; // 引入 useLocation
 
-interface MainContentProps {
-  documentId: number | null; // 通过 props 传递 documentId
-}
-
-const MainContent: React.FC<MainContentProps> = ({ documentId }) => {
+const MainContent: React.FC = () => {
   const [documentContent, setDocumentContent] = useState<string>("");
   const [documentDetails, setDocumentDetails] = useState<any>({}); // 用于存储文档详情
   const [loading, setLoading] = useState<boolean>(false); // 用于显示加载提示
 
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search); // 获取查询参数
+  const documentId = queryParams.get("documentId"); // 获取 documentId
+
+  // 检查是否获得了有效的 documentId
+  useEffect(() => {
+    if (!documentId) {
+      console.error("Error: documentId is not provided!");
+      return;
+    }
+    console.log("Document ID:", documentId); // 输出 documentId 进行检查
+    fetchDocumentContent(documentId);
+  }, [documentId]);
+
   // 缓存文档内容，避免重复请求
-  const fetchDocumentContent = useCallback(async () => {
+  const fetchDocumentContent = async (documentId: string) => {
     if (!documentId) return;
 
     const cachedDocument = sessionStorage.getItem(`document-${documentId}`);
@@ -28,10 +37,10 @@ const MainContent: React.FC<MainContentProps> = ({ documentId }) => {
     setLoading(true); // 设置加载状态为 true
     try {
       const response = await axios.get(
-        `http://localhost:8080/api/documents/search/${documentId}`, // 获取单个文档
+        `http://localhost:8080/api/documents/read?documentId=${documentId}`,
         {
           headers: {
-            "Content-Type": "application/json", // 改为 "application/json" 更符合标准的 API 调用
+            "Content-Type": "application/json",
             Authorization: `Bearer ${localStorage.getItem("jwtToken")}`,
           },
         }
@@ -60,18 +69,13 @@ const MainContent: React.FC<MainContentProps> = ({ documentId }) => {
     } finally {
       setLoading(false); // 数据请求完成，隐藏加载提示
     }
-  }, [documentId]);
+  };
 
   // 格式化时间
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleString(); // 使用本地格式输出日期和时间
   };
-
-  // 依赖于 documentId，组件加载时请求数据
-  useEffect(() => {
-    fetchDocumentContent();
-  }, [documentId, fetchDocumentContent]);
 
   return (
     <div className="main-content">
@@ -102,43 +106,7 @@ const MainContent: React.FC<MainContentProps> = ({ documentId }) => {
           </div>
 
           {/* 渲染文档内容 */}
-          <Editor
-            apiKey="fjnm5g2otneaagwyv2ar146jny63sai9ft966tr14yt3gcyc" // TinyMCE API Key
-            value={documentContent} // 绑定文档内容到编辑器
-            init={{
-              height: 500,
-              menubar: false,
-              plugins: [
-                "advlist autolink lists link image charmap print preview anchor",
-                "searchreplace visualblocks code fullscreen",
-                "insertdatetime media table paste code help wordcount",
-              ],
-              toolbar:
-                "undo redo | formatselect | bold italic underline | alignleft aligncenter alignright alignjustify | outdent indent | bullist numlist | link image",
-              // 使用自定义上传适配器插件
-              extraPlugins: [MyUploadAdapterPlugin],
-              file_picker_types: "image", // 只允许图片上传
-              disable: true, // 设置为只读模式
-              // 配置上传图片时的文件选择回调
-              file_picker_callback: (callback: any, value: any, meta: any) => {
-                // 打开文件选择框
-                const input = document.createElement("input");
-                input.type = "file";
-                input.accept = "image/*"; // 只允许选择图片
-                input.onchange = async () => {
-                  const file = input.files![0];
-                  const formData = new FormData();
-                  formData.append("file", file);
-
-                  // 模拟上传文件，生成本地 URL（你可以改为真实上传）
-                  const imageUrl = URL.createObjectURL(file);
-                  callback(imageUrl); // 返回图像 URL
-                };
-                input.click();
-              },
-            }}
-            disabled={true} // 禁用编辑器，即只读模式
-          />
+          <div dangerouslySetInnerHTML={{ __html: documentContent }} />
         </>
       )}
     </div>

@@ -5,7 +5,9 @@ import RegisterPage from "./pages/Register";
 import LoginPage from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import UploadTextPage from "./pages/Upload";
-import Sidebar from "./pages/LoadContent/sidebar";
+import DocumentsSidebar from "./pages/LoadContent/sidebar";
+import MainContent from "./pages/LoadContent/mainContent";
+import { useLocation } from "react-router-dom"; // 引入 useLocation
 
 const App: React.FC = () => {
   const { loading, userId } = useAuth(); // 使用自定義 Hook
@@ -40,8 +42,13 @@ const App: React.FC = () => {
         )}
         {/* 查詢頁面，並傳遞用戶 ID */}
         {userId && (
-          <Route path="/search" element={<Sidebar userId={userId!} />} />
+          <Route
+            path="/search"
+            element={<DocumentsSidebar userId={userId!} />}
+          />
         )}
+        {/* 读取文档页 */}
+        <Route path="/documents/read" element={<MainContent />} />
       </Routes>
     </div>
   );
