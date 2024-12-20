@@ -1,12 +1,17 @@
 import React from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import useAuth from "./components/useAuth"; // 引入自定義的 useAuth Hook
-import RegisterPage from "./pages/Register";
-import LoginPage from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import UploadTextPage from "./pages/Upload";
-import DocumentsSidebar from "./pages/LoadContent/sidebar";
-import MainContent from "./pages/LoadContent/mainContent";
+import Menu from "./pages/home/Menu";
+import HomePage from "./pages/home/HomePage";
+import RegisterPage from "./pages/register";
+import LoginPage from "./pages/login";
+import CalendarPage from "./pages/calendar/CalendarPage";
+import PomodoroPage from "./pages/pomodoro/PomodoroPage";
+import FlashCardPage from "./pages/flash-card/FlashCardPage";
+import UploadTextPage from "./pages/upload/UploadTextPage";
+import DocumentsPage from "./pages/document/DocumentPage";
+
+import ChartPage from "./pages/progress/ChartPage";
 import { useLocation } from "react-router-dom"; // 引入 useLocation
 
 const App: React.FC = () => {
@@ -17,49 +22,34 @@ const App: React.FC = () => {
   }
 
   return (
-    <div
-      style={{
-        display: "flex", // 啟用 Flexbox 佈局
-        justifyContent: "center", // 水平居中
-        alignItems: "center", // 垂直居中
-        height: "100vh", // 設置容器高度為視口高度
-        padding: "20px", // 內邊距，避免內容靠邊
-        boxSizing: "border-box", // 確保 padding 不會影響元素大小
-      }}
-    >
-      <Routes>
-        {/* 登入頁面 */}
-        <Route path="/login" element={<LoginPage />} />
-        {/* 根路由指向登入頁面 */}
-        <Route path="/" element={<LoginPage />} />
-        {/* 註冊頁面 */}
-        <Route path="/register" element={<RegisterPage />} />
-        {/* 需要驗證的路由，使用 useAuth 處理後，這些頁面可以保護 */}
-        <Route path="/dashboard" element={<Dashboard />} />
-        {/* 上傳頁面，並傳遞用戶 ID */}
-        {userId && (
-          <Route path="/upload" element={<UploadTextPage userId={userId!} />} />
-        )}
-        {/* 查詢頁面，並傳遞用戶 ID */}
-        {userId && (
-          <Route
-            path="/search"
-            element={<DocumentsSidebar userId={userId!} />}
-          />
-        )}
-        {/* 读取文档页 */}
-        <Route path="/documents/read" element={<MainContent />} />
-      </Routes>
-    </div>
+    <Routes>
+      {/* 根路由指向介紹頁面 */}
+      <Route path="/" element={<Menu />} />
+
+      {/* 登入頁面 */}
+      <Route path="/login" element={<LoginPage />} />
+      {/* 註冊頁面 */}
+      <Route path="/register" element={<RegisterPage />} />
+      {/* 需要驗證的路由，使用 useAuth 處理後，這些頁面可以保護 */}
+      <Route path="/home" element={<HomePage />} />
+      <Route path="/calendar" element={<CalendarPage />} />
+      <Route path="/clock" element={<PomodoroPage />} />
+
+      {/* 上傳頁面，並傳遞用戶 ID */}
+      {userId && (
+        <Route path="/upload" element={<UploadTextPage userId={userId!} />} />
+      )}
+      {/* 查詢頁面，並傳遞用戶 ID */}
+      {userId && (
+        <Route path="/search" element={<DocumentsPage userId={userId!} />} />
+      )}
+      {/* 讀取文檔頁 */}
+      {/* <Route path="/documents/read" element={<MainContent />} /> */}
+
+      <Route path="/card" element={<FlashCardPage />} />
+      <Route path="/progress" element={<ChartPage />} />
+    </Routes>
   );
 };
 
-const Root: React.FC = () => {
-  return (
-    <Router>
-      <App />
-    </Router>
-  );
-};
-
-export default Root;
+export default App;

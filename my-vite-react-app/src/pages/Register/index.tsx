@@ -1,34 +1,47 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom"; // 用 useNavigate 來處理頁面跳轉
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import {
-  TextField,
+  Layout,
+  Input,
   Button,
-  Stack,
   Typography,
-  FormControl,
-  InputLabel,
+  message,
+  Card,
+  Space,
+  Form,
   Select,
-  MenuItem,
-  InputAdornment,
-  IconButton,
-  Divider,
-  Link,
-} from "@mui/material";
-import { Icon } from "@iconify/react"; // Correct import for Iconify icons
+} from "antd";
+
+const { Content, Footer } = Layout;
+const { Title, Text } = Typography;
+import CustomHeaderLogin from "../custom-header/CustomHeaderLogin";
 
 const RegisterPage = () => {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [email, setEmail] = useState("");
-  const [role, setRole] = useState("USER");
-  const [error, setError] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const navigate = useNavigate(); // 用 useNavigate 來處理頁面跳轉
+  const [username, setUsername] = useState(""); // 使用者名稱
+  const [password, setPassword] = useState(""); // 密碼
+  const [email, setEmail] = useState(""); // 電子郵件
+  const [role, setRole] = useState("USER"); // 角色
+  const [error, setError] = useState(""); // 錯誤訊息
+  const [showPassword, setShowPassword] = useState(false); // 顯示密碼
+  const navigate = useNavigate(); // 路由跳轉
+
+  // 正則表達式驗證電子郵件格式
+  const validateEmail = (email: string) => {
+    const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$/;
+    return emailRegex.test(email);
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
+    e.preventDefault(); // 防止表單預設提交
     setError(""); // 清除錯誤訊息
+
+    // 驗證電子郵件格式
+    if (!validateEmail(email)) {
+      setError("請輸入有效的電子郵件地址。");
+      message.error("請輸入有效的電子郵件地址。");
+      return;
+    }
 
     try {
       const registerRequest = {
@@ -38,141 +51,134 @@ const RegisterPage = () => {
         role: role,
       };
 
-      // 發送 POST 請求到後端註冊 API
       const response = await axios.post(
-        "http://localhost:8080/api/users/register", // 后端注册 API 地址
-        registerRequest, // 请求体
+        "http://localhost:8080/api/users/register", // 後端註冊 API 地址
+        registerRequest,
         {
           headers: {
-            "Content-Type": "application/json", // 确保 Content-Type 是 application/json
+            "Content-Type": "application/json", // 確保 Content-Type 是 application/json
           },
         }
       );
 
       if (response.status === 200) {
-        alert("Registration successful!");
-        navigate("/login"); // 跳轉到登入頁面
+        message.success("註冊成功！");
+        navigate("/login"); // 註冊成功後跳轉到登入頁面
       }
     } catch (err) {
-      setError("Registration failed. Please try again.");
+      setError("註冊失敗，請再試一次。");
+      message.error("註冊失敗，請再試一次。");
     }
   };
 
   return (
-    <div style={{ maxWidth: 400, margin: "0 auto", padding: "20px" }}>
-      <Typography align="center" variant="h4" gutterBottom>
-        Create an Account
-      </Typography>
-      <Typography align="center" variant="body2" mb={3}>
-        Please fill in the details to create your account.
-      </Typography>
+    <Layout style={{ minHeight: "100vh" }}>
+      {/* 頁面頭部 */}
+      <CustomHeaderLogin
+        // bgColor="#f5e4d8"
+        menuColor={{ frontColor: "#923c3c", hoverColor: "#6f6262" }}
+      />
 
-      <Stack
-        component="form"
-        onSubmit={handleSubmit}
-        direction="column"
-        gap={2}
+      {/* 註冊內容 */}
+      <Content
+        style={{
+          padding: "20px",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+        }}
       >
-        <TextField
-          id="username"
-          name="username"
-          type="text"
-          label="Username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-          variant="filled"
-          fullWidth
-          required
-          autoFocus
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <Icon icon="ic:baseline-alternate-email" />
-              </InputAdornment>
-            ),
+        <Card
+          style={{
+            maxWidth: 400,
+            width: "100%",
+            textAlign: "center",
+            boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
+            borderRadius: 8,
+            marginBottom: 100,
           }}
-        />
-        <TextField
-          id="email"
-          name="email"
-          type="email"
-          label="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          variant="filled"
-          fullWidth
-          required
-        />
-        <TextField
-          id="password"
-          name="password"
-          type={showPassword ? "text" : "password"}
-          label="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          variant="filled"
-          fullWidth
-          required
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <Icon icon="ic:outline-lock" />
-              </InputAdornment>
-            ),
-            endAdornment: (
-              <InputAdornment position="end">
-                <IconButton
-                  aria-label="toggle password visibility"
-                  onClick={() => setShowPassword(!showPassword)}
-                  edge="end"
-                >
-                  <Icon
-                    icon={
-                      showPassword
-                        ? "ic:outline-visibility"
-                        : "ic:outline-visibility-off"
-                    }
-                  />
-                </IconButton>
-              </InputAdornment>
-            ),
-          }}
-        />
-
-        <FormControl variant="filled" fullWidth required>
-          <InputLabel>Role</InputLabel>
-          <Select
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-            label="Role"
+        >
+          <Title level={3} style={{ color: "#955049", marginBottom: 5 }}>
+            創建帳號
+          </Title>
+          <Typography
+            variant="body2"
+            mb={3}
+            type="secondary"
+            style={{ color: "#955049", paddingBottom: 10 }}
           >
-            <MenuItem value="USER">User</MenuItem>
-            <MenuItem value="ADMIN">Admin</MenuItem>
-          </Select>
-        </FormControl>
-
-        {error && (
-          <Typography variant="body2" color="error" align="center">
-            {error}
+            請填寫以下資料以創建您的帳號。
           </Typography>
-        )}
 
-        <Button type="submit" variant="contained" color="primary" fullWidth>
-          Register
-        </Button>
-      </Stack>
+          <form onSubmit={handleSubmit} style={{ textAlign: "left" }}>
+            <Space direction="vertical" style={{ width: "100%" }} size="large">
+              <Input
+                placeholder="使用者名稱"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+              />
+              <Input
+                placeholder="電子郵件"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+              <Input.Password
+                placeholder="密碼"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                iconRender={(visible) => (visible ? "👁️" : "👁️‍🗨️")}
+              />
+              <Form.Item label="角色" name="role" required>
+                <Select
+                  value={role}
+                  onChange={(value: string) => setRole(value)} // 明確指定 value 類型為 string
+                  style={{ width: "100%" }}
+                >
+                  <Select.Option value="USER">使用者</Select.Option>
+                  <Select.Option value="ADMIN">管理員</Select.Option>
+                </Select>
+              </Form.Item>
 
-      <Divider sx={{ my: 4 }} />
+              {error && (
+                <Text
+                  type="danger"
+                  style={{ textAlign: "center", display: "block" }}
+                >
+                  {error}
+                </Text>
+              )}
 
-      <Typography
-        variant="body2"
-        color="text.secondary"
-        align="center"
-        letterSpacing={0.25}
-      >
-        Already have an account? <Link href="#login">Login</Link>
-      </Typography>
-    </div>
+              <Button
+                type="primary"
+                htmlType="submit"
+                block
+                style={{
+                  backgroundColor: "#d8a29d",
+                  borderColor: "#d8a29d",
+                }}
+              >
+                註冊
+              </Button>
+            </Space>
+          </form>
+
+          <Text type="secondary" style={{ marginTop: 20, display: "block" }}>
+            已經有帳號了？{" "}
+            <a href="/login" style={{ color: "#d8a29d" }}>
+              登入
+            </a>
+          </Text>
+        </Card>
+      </Content>
+
+      {/* 頁面底部 */}
+      {/* <Footer style={{ textAlign: "center", background: "#f5e4d8" }}>
+        © 2024 文件管理平台
+      </Footer> */}
+    </Layout>
   );
 };
 

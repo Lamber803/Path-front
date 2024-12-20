@@ -3,7 +3,6 @@ import { Button, TextField, IconButton } from "@mui/material";
 import TinyMCEEditor from "../../components/TinyMCEEditor"; // 引入 TinyMCEEditor
 import axios from "axios";
 import DeleteIcon from "@mui/icons-material/Delete";
-import Sidebar from "../Sidebar/Sidebar"; // 引入 Sidebar
 
 interface UploadTextPageProps {
   userId: number; // 父组件传入的 userId

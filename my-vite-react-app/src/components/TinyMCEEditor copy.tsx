@@ -7,9 +7,7 @@ interface TinyMCEEditorProps {
 }
 
 const TinyMCEEditor: React.FC<TinyMCEEditorProps> = ({ value, onChange }) => {
-  const [files, setFiles] = useState<
-    { file: File; blobUrl: string; fileType: string }[]
-  >([]); // 存储上传的文件及其 Blob URL
+  const [files, setFiles] = useState<File[]>([]); // 存储上传的文件
 
   // 处理文件选择
   const filePickerCallback = async (callback: any, value: any, meta: any) => {
@@ -27,11 +25,8 @@ const TinyMCEEditor: React.FC<TinyMCEEditorProps> = ({ value, onChange }) => {
       const file = input.files![0];
       const fileUrl = URL.createObjectURL(file); // 创建 Blob URL
 
-      // 临时保存文件和 Blob URL
-      setFiles((prevFiles) => [
-        ...prevFiles,
-        { file, blobUrl: fileUrl, fileType: meta.filetype },
-      ]);
+      // 临时保存文件
+      setFiles((prevFiles) => [...prevFiles, file]);
 
       // 插入临时文件 URL
       if (meta.filetype === "image") {
@@ -44,55 +39,27 @@ const TinyMCEEditor: React.FC<TinyMCEEditorProps> = ({ value, onChange }) => {
     input.click();
   };
 
-  // 提交前处理文件 URL
-  const handleEditorSubmit = async () => {
-    let contentWithPlaceholder = value;
+  // 处理提交文件
+  const handleSubmit = async () => {
     const formData = new FormData();
+    files.forEach((file) => formData.append("files", file));
 
-    // 在提交前上传文件并替换占位符URL
-    const uploadPromises = files.map(async ({ file, blobUrl, fileType }) => {
-      formData.append("files", file);
-      try {
-        const response = await fetch("/upload", {
-          method: "POST",
-          body: formData,
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          const serverUrl = data.fileUrls[0]; // 后端返回的真实 URL
-
-          // 替换编辑器中的 Blob URL 为真实的服务器 URL
-          contentWithPlaceholder = contentWithPlaceholder.replace(
-            blobUrl,
-            serverUrl
-          );
-        }
-      } catch (error) {
-        console.error("上传失败", error);
-      }
-    });
-
-    await Promise.all(uploadPromises);
-
-    // 提交编辑器内容（含替换后的文件 URL）
+    // 上传文件到服务器
     try {
-      const submitResponse = await fetch("/submit-content", {
+      const response = await fetch("/upload", {
         method: "POST",
-        body: JSON.stringify({ content: contentWithPlaceholder }),
-        headers: {
-          "Content-Type": "application/json",
-        },
+        body: formData,
       });
 
-      if (submitResponse.ok) {
-        alert("内容提交成功！");
+      if (response.ok) {
+        const data = await response.json();
+        alert("文件上传成功：" + data.fileUrls.join(", "));
       } else {
-        alert("内容提交失败！");
+        alert("文件上传失败");
       }
     } catch (error) {
-      console.error("提交失败", error);
-      alert("提交失败！");
+      console.error("文件上传失败:", error);
+      alert("文件上传失败");
     }
   };
 
@@ -144,7 +111,7 @@ const TinyMCEEditor: React.FC<TinyMCEEditorProps> = ({ value, onChange }) => {
           },
         }}
       />
-      <button onClick={handleEditorSubmit}>提交编辑内容</button>
+      {/* <button onClick={handleSubmit}>提交文件</button> */}
     </div>
   );
 };
