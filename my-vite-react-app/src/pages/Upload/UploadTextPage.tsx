@@ -29,7 +29,6 @@ const UploadTextPage: React.FC<UploadTextPageProps> = ({ userId }) => {
   const [editorContent, setEditorContent] = useState<string>(""); // 編輯器內容
   const [fileList, setFileList] = useState<any[]>([]); // 文件列表
   const [title, setTitle] = useState<string>(""); // 標題
-
   // 標題變化處理
   const handleTitleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setTitle(event.target.value);

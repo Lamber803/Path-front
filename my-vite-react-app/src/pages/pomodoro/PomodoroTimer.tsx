@@ -7,28 +7,41 @@ import {
   ReloadOutlined,
   DeleteOutlined,
 } from "@ant-design/icons";
+import styled from "styled-components";
 import tomatoImage1 from "./image/tomato.png";
 import tomatoImage2 from "./image/tomato2.png";
 import tomatoImage3 from "./image/tomato3.png";
 import tomatoImage4 from "./image/tomato4.png";
 import tomatoImage5 from "./image/tomato5.png";
 import tomatoImage6 from "./image/tomato6.png";
+import { updatePomodoroSettings } from "./PomodoroApi";
 
-const PomodoroTimer: React.FC = () => {
+interface PomodoroPageProps {
+  userId: number; // 父组件传入的 userId
+}
+interface PomodoroDTO {
+  pomodoroId: number;
+  pomodoroName: string;
+  workDuration: number;
+  breakDuration: number;
+  totalTime: number;
+  userId: number; // 或者根据实际数据结构调整
+}
+const HoverButton = styled(Button)`
+  background-color: #ad4545;
+  border-color: #ad4545;
+
+  &:hover {
+    background-color: rgb(190, 99, 99) !important;
+    border-color: rgb(190, 99, 99) !important;
+  }
+`;
+const PomodoroTimer: React.FC<PomodoroPageProps> = ({ userId }) => {
   const [pomodoroVisible, setPomodoroVisible] = useState(false); // 控制 Pomodoro 計時器視窗顯示
   const [isCreatingTask, setIsCreatingTask] = useState(false); // 是否在創建新任務的狀態
   const [currentTask, setCurrentTask] = useState<string>(""); // 當前選中的任務名稱
-  const [tasks, setTasks] = useState<
-    {
-      id: string;
-      task: string;
-      totalTime: number;
-      workDuration: number;
-      breakDuration: number;
-      hover: boolean;
-      isTimeAdded: boolean;
-    }[]
-  >([]); // 存儲任務列表和累計時長
+  const [currentTaskId, setCurrentTaskId] = useState<number | null>(null); // 当前任务ID
+  const [tasks, setTasks] = useState<PomodoroDTO[]>([]); // 初始化为空数组 // 存儲任務列表和累計時長
 
   const [isRunning, setIsRunning] = useState(false); // 是否運行中
   const [timeLeft, setTimeLeft] = useState(25 * 60); // 預設工作時間 25 分鐘
@@ -38,9 +51,43 @@ const PomodoroTimer: React.FC = () => {
   const [isWorkPhase, setIsWorkPhase] = useState(true); // 是否在工作階段
   const [planName, setPlanName] = useState(""); // 用戶自定義計劃名稱
   const [isEditable, setIsEditable] = useState(true); // 是否可以編輯計劃名稱
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // 計時邏輯
   useEffect(() => {
+    if (userId) {
+      setLoading(true);
+      setError(null);
+
+      // 發送 API 請求查詢文檔
+      axios
+        .get(`http://localhost:8080/api/pomodoro/tasks?userId=${userId}`, {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("jwtToken")}`,
+          },
+        })
+        .then((response) => {
+          const data = response.data;
+          console.log(data); // 查看返回的數據結構
+
+          // 檢查返回的數據是否為陣列
+          if (Array.isArray(data)) {
+            setTasks(data); // 設置為 pomodoros
+            // 假设返回的数据中包含了全局的工作时间和休息时间配置
+            // 只要任务列表非空，设置工作时间和休息时间
+          } else {
+            setError("返回的數據格式無效");
+          }
+        })
+        .catch(() => {
+          setError("無法加載文檔");
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    }
     let interval: NodeJS.Timeout;
 
     if (isRunning) {
@@ -71,48 +118,84 @@ const PomodoroTimer: React.FC = () => {
     }
 
     return () => clearInterval(interval); // 清理計時器
-  }, [isRunning, isWorkPhase, workDuration, breakDuration]);
+  }, [userId, isRunning, isWorkPhase, workDuration, breakDuration]);
 
   // 當用戶點擊「新增學習任務」按鈕時，顯示番茄鐘設定彈窗
   const handleCreateTask = () => {
     setIsCreatingTask(true); // 開啟創建任務的彈窗
+    setCurrentTaskId(null); // 或者设置为空字符串/初始状态
     setPomodoroVisible(true); // 顯示 Pomodoro 計時器視窗
   };
   // 保存任務後自動添加到任務列表
-  const handleSaveTask = () => {
+  const handleSaveTask = async () => {
     if (!planName) {
       message.warning("請輸入任務名稱！");
       return;
     }
-    const newTask = {
-      id: `${Date.now()}`, // 用時間戳作為任務 ID
-      task: planName,
-      totalTime: 0,
-      workDuration: workDuration, // 儲存用戶自定義的工作時間
-      breakDuration: breakDuration, // 儲存用戶自定義的休息時間
-      hover: false,
+    const newPomodoroDTO = {
+      userId: userId,
+      pomodoroName: planName, // 任務名稱
+      workDuration: workDuration, // 工作時間
+      breakDuration: breakDuration, // 休息時間
+      totalTime: 0, // 初始時累積時間為 0
     };
-    setTasks([...tasks, newTask]); // 將新任務添加到任務列表
-    setPomodoroVisible(false); // 關閉彈窗
-    setIsCreatingTask(false); // 關閉創建任務的狀態
-    setPlanName(""); // 清空任務名稱
-    setWorkDuration(25 * 60); // 重置工作時間
-    setBreakDuration(5 * 60); // 重置休息時間
-  };
-  // 用戶編輯計劃名稱
-  const handleEditPlanName = () => {
-    setIsEditable(!isEditable);
-    if (isEditable) {
-      const updatedTasks = tasks.map((task) => {
-        if (task.task === currentTask) {
-          return { ...task, task: planName }; // 即時更新計劃名稱
+    try {
+      const response = await axios.post(
+        `http://localhost:8080/api/pomodoro/tasks`,
+        newPomodoroDTO,
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("jwtToken")}`,
+          },
         }
-        return task;
-      });
-      setTasks(updatedTasks);
+      );
+      console.log(response.data); // 打印响应数据
+
+      setTasks([...tasks, response.data]); // 將新任務添加到任務列表
+      setPomodoroVisible(false); // 關閉彈窗
+      setIsCreatingTask(false); // 關閉創建任務的狀態
+      setPlanName(""); // 清空任務名稱
+      setWorkDuration(25 * 60); // 重置工作時間
+      setBreakDuration(5 * 60); // 重置休息時間
+      return response.data; // 返回後端響應數據
+    } catch (error) {
+      console.error("提交失敗，請稍後再試！", error);
+      message.error("提交失敗，請稍後再試！"); // 顯示錯誤訊息
+      throw new Error("提交失敗，請稍後再試！");
     }
   };
+  // 用戶編輯計劃名稱
+  const handleEditPlanName = async () => {
+    console.log("edit!");
+    setIsEditable((prev) => !prev); // 正确更新状态
+    if (currentTaskId !== null) {
+      console.log("checker");
+      const data = {
+        pomodoroId: currentTaskId, // 包含 pomodoroId
+        pomodoroName: planName, // 更新名稱
+        userId: userId, // 用戶ID（需要傳遞給後端）
+      };
+      try {
+        console.log("send api");
+        const result = await updatePomodoroSettings(data, "name");
+        console.log("名稱更新成功:", result);
 
+        // 更新前端本地状态
+        setTasks((prevTasks) =>
+          prevTasks.map((task) =>
+            task.pomodoroId === currentTaskId
+              ? { ...task, pomodoroName: planName }
+              : task
+          )
+        );
+      } catch (error) {
+        console.error("更新名稱失败:", error);
+      }
+    } else {
+      console.log("currentTaskId === null");
+    }
+  };
   // 用戶輸入計劃名稱
   const handlePlanNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setPlanName(e.target.value);
@@ -132,42 +215,96 @@ const PomodoroTimer: React.FC = () => {
   };
 
   // 完成任務，將時間記錄下來
-  const handleComplete = () => {
+  const handleComplete = async () => {
     // 以分鐘為單位，四捨五入
     const roundedTime = Math.round(timeElapsed / 60); // 四捨五入到最接近的分鐘數
 
-    if (roundedTime < 1) {
-      message.warning("學習時間未滿 5 分鐘，未保存。");
-      return; // 不保存這段時間
+    // if (roundedTime < 1) {
+    //   message.warning("學習時間未滿 5 分鐘，未保存。");
+    //   return; // 不保存這段時間
+    // }
+
+    if (currentTaskId !== null) {
+      setTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          task.pomodoroId === currentTaskId
+            ? {
+                ...task,
+                totalTime: task.totalTime + roundedTime,
+              }
+            : task
+        )
+      );
+      // 调用 API 更新任务的总时长到数据库
+      const data = {
+        pomodoroId: currentTaskId, // 包含 pomodoroId
+        workDuration: workDuration,
+        breakDuration: breakDuration,
+        totalTime: roundedTime,
+        userId: userId, // 用戶ID（需要傳遞給後端）
+      };
+      try {
+        await updatePomodoroSettings(data, "timer");
+        message.success(`${currentTask} 完成，總時長：${roundedTime} 分鐘`);
+      } catch (error) {
+        console.error("保存任务时间失败:", error);
+        message.error("任务保存失败，请稍后再试");
+      }
+      await fetchTasks(); // 重新请求任务列表并更新前端
     }
 
-    setTasks((prevTasks) => {
-      const updatedTasks = prevTasks.map((task) => {
-        if (task.task === currentTask && !task.isTimeAdded) {
-          return {
-            ...task,
-            totalTime: task.totalTime + roundedTime, // 累加總時長
-            isTimeAdded: false, // 記錄這個時間已經累加過
-          };
-        }
-        return task;
-      });
-      return updatedTasks;
-    });
-
-    message.success(`${currentTask} 完成，總時長：${roundedTime} 分鐘`);
     setTimeElapsed(0);
-
     setPomodoroVisible(false); // 關閉 Pomodoro 計時器視窗
   };
 
-  // 刪除任務
-  const handleDeleteTask = (taskId: string) => {
-    const updatedTasks = tasks.filter((task) => task.id !== taskId);
-    setTasks(updatedTasks);
-    message.success("任務已刪除");
+  const fetchTasks = async () => {
+    try {
+      const response = await axios.get(
+        `http://localhost:8080/api/pomodoro/tasks?userId=${userId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("jwtToken")}`,
+          },
+        }
+      );
+      setTasks(response.data); // 假设返回的数据格式符合你的需求
+    } catch (error) {
+      console.error("获取任务列表失败:", error);
+      message.error("获取任务列表失败，请稍后再试");
+    }
   };
 
+  // 刪除任務
+  const handleDeleteTask = async (taskId: number) => {
+    try {
+      // 发送 DELETE 请求到后端
+      const response = await axios.delete(
+        `http://localhost:8080/api/pomodoro/tasks/delete`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("jwtToken")}`, // 添加用户的JWT token
+          },
+          data: {
+            pomodoroId: taskId, // 传递要删除的任务ID
+            userId: userId, // 传递当前用户ID
+          },
+        }
+      );
+
+      // 如果请求成功，更新前端列表
+      if (response.status === 204) {
+        const updatedTasks = tasks.filter(
+          (task) => task.pomodoroId !== currentTaskId
+        );
+        setTasks(updatedTasks);
+        message.success("任務已刪除");
+      }
+    } catch (error) {
+      console.error("刪除任務失敗:", error);
+      message.error("刪除任務失敗，請稍後再試");
+    }
+    await fetchTasks();
+  };
   // 用戶設置工作時間和休息時間
   const handleWorkDurationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!isRunning) {
@@ -194,15 +331,6 @@ const PomodoroTimer: React.FC = () => {
     return `${minutes.toString().padStart(2, "0")}:${secs
       .toString()
       .padStart(2, "0")}`;
-  };
-
-  // 更新單個任務的 hover 狀態
-  const handleTaskHover = (taskId: string, isHovered: boolean) => {
-    setTasks((prevTasks) =>
-      prevTasks.map((task) =>
-        task.id === taskId ? { ...task, hover: isHovered } : task
-      )
-    );
   };
 
   // 根據剩餘時間選擇圖片
@@ -308,7 +436,7 @@ const PomodoroTimer: React.FC = () => {
         </div>
 
         <div style={{ marginTop: "20px", textAlign: "center" }}>
-          <Button
+          <HoverButton
             type="primary"
             icon={isRunning ? <StopOutlined /> : <PlayCircleOutlined />}
             size="large"
@@ -321,7 +449,7 @@ const PomodoroTimer: React.FC = () => {
             disabled={isCreatingTask} // 創建任務時禁用開始按鈕
           >
             {isRunning ? "暫停" : "開始"}
-          </Button>
+          </HoverButton>
           <Button
             icon={<ReloadOutlined />}
             size="large"
@@ -352,7 +480,7 @@ const PomodoroTimer: React.FC = () => {
       </Modal>
 
       {/* 新增學習任務按鈕 */}
-      <Button
+      <HoverButton
         type="primary"
         onClick={handleCreateTask}
         style={{
@@ -363,7 +491,7 @@ const PomodoroTimer: React.FC = () => {
         }}
       >
         新增學習任務
-      </Button>
+      </HoverButton>
 
       {/* 顯示任務列表，並加上滾動條 */}
       <div
@@ -398,29 +526,28 @@ const PomodoroTimer: React.FC = () => {
         <List
           style={{ marginLeft: 45 }}
           dataSource={tasks}
-          renderItem={(item) => (
+          renderItem={(task) => (
             <List.Item
               actions={[
-                <Button
+                <HoverButton
                   type="primary"
                   onClick={() => {
-                    setCurrentTask(item.task);
-                    setPlanName(item.task);
+                    setCurrentTask(task.pomodoroName);
+                    setCurrentTaskId(task.pomodoroId);
+                    setPlanName(task.pomodoroName);
+                    setBreakDuration(task.breakDuration);
+                    setWorkDuration(task.workDuration);
+                    setTimeLeft(task.workDuration);
                     setPomodoroVisible(true); // 顯示 Pomodoro 計時器
                   }}
-                  style={{
-                    backgroundColor: item.hover ? "#ef7f7f" : "#ad4545", // 根據 hover 狀態改變背景顏色
-                    borderColor: item.hover ? "#ef7f7f" : "#ad4545", // 根據 hover 狀態改變邊框顏色
-                  }}
-                  onMouseEnter={() => handleTaskHover(item.id, true)} // 當鼠標進入時設置 hover 為 true
-                  onMouseLeave={() => handleTaskHover(item.id, false)} // 當鼠標離開時設置 hover 為 false
+                  key={task.pomodoroId}
                 >
                   開始 Pomodoro
-                </Button>,
+                </HoverButton>,
                 <Button
                   type="default"
                   icon={<DeleteOutlined />}
-                  onClick={() => handleDeleteTask(item.id)} // 刪除任務的函數
+                  onClick={() => handleDeleteTask(task.pomodoroId)} // 刪除任務的函數
                   style={{ marginLeft: 8 }}
                 >
                   刪除
@@ -428,8 +555,8 @@ const PomodoroTimer: React.FC = () => {
               ]}
             >
               <List.Item.Meta
-                title={item.task}
-                description={`累計時長：${item.totalTime} 分鐘`}
+                title={task.pomodoroName}
+                description={`累計時長：${task.totalTime} 分鐘`}
               />
             </List.Item>
           )}

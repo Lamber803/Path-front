@@ -32,8 +32,8 @@ const App: React.FC = () => {
       <Route path="/register" element={<RegisterPage />} />
       {/* 需要驗證的路由，使用 useAuth 處理後，這些頁面可以保護 */}
       <Route path="/home" element={<HomePage />} />
-      <Route path="/calendar" element={<CalendarPage />} />
-      <Route path="/clock" element={<PomodoroPage />} />
+      <Route path="/calendar" element={<CalendarPage userId={userId!} />} />
+      <Route path="/clock" element={<PomodoroPage userId={userId!} />} />
 
       {/* 上傳頁面，並傳遞用戶 ID */}
       {userId && (
