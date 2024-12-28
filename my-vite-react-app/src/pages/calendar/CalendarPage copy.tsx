@@ -18,6 +18,7 @@ import { SmileOutlined, MehOutlined, FrownOutlined } from "@ant-design/icons";
 import TodoApp from "./ToDo";
 import CustomHeader from "../custom-header/CustomHeader";
 import styled from "styled-components";
+import axios from "axios"; // 引入 axios
 
 const { Content, Sider } = Layout;
 const { Option } = Select;
@@ -28,48 +29,50 @@ const StyledRadioButton = styled(Radio.Button)<{
 }>`
   background-color: transparent !important;
 
-  /* 选中时的背景色 */
+  /* 選中時樣式 */
   &.ant-radio-button-wrapper-checked::before {
     background-color: ${(props) =>
       props.checked ? props.selectedColor || "#e74c3c" : "#d9d9d9"};
     z-index: -1;
   }
-  /* 增加选中时的边框宽度和样式 */
+
   &.ant-radio-button-wrapper-checked {
     border-color: ${(props) =>
       props.checked ? props.selectedColor || "#e74c3c" : "#d9d9d9"};
   }
 
-  /* 禁用 checked 状态下的 hover 效果 */
+  /* 禁用 checked 狀態下的 hover 效果 */
   &.ant-radio-button-wrapper-checked:hover {
     border-color: ${(props) =>
       props.checked ? props.selectedColor || "#e74c3c" : "#a2e38c"};
   }
-  /* 针对第一个按钮的样式 */
+  /* 針對第一個按鈕 */
   &:first-child.ant-radio-button-wrapper-checked {
     border-color: ${(props) =>
-      props.checked
-        ? props.selectedColor || "#a2e38c"
-        : "#d9d9d9"}; /* 为第一个按钮设置选中边框颜色 */
+      props.checked ? props.selectedColor || "#a2e38c" : "#d9d9d9"};
   }
 `;
 const localizer = momentLocalizer(moment); // 使用 moment 來設置本地化
 
-// 定義事件結構
-interface Event {
-  eventId: string;
-  eventTitle: string;
-  eventLocation: string; // 地點
-  eventStartTime: Date;
-  eventEndTime: Date;
-  eventMood: string; // 心情
-  eventColor: string; // 顏色
-  eventRepeat: string; // 重複選項
-  isCompleted: boolean; // 是否已完成
-  userId: userId;
+interface CalendarPageProps {
+  userId: number; // Expecting userId to be passed as a prop
 }
 
-const CalendarPage: React.FC = () => {
+// 定義事件結構
+interface Event {
+  eventId?: number;
+  eventTitle: string;
+  eventLocation?: string; // 地點
+  eventStartTime?: Date;
+  eventEndTime?: Date;
+  eventMood?: string; // 心情
+  eventColor: string; // 顏色
+  eventRepeat?: string; // 重複選項
+  isCompleted?: boolean; // 是否已完成
+  userId: number;
+}
+
+const CalendarPage: React.FC<CalendarPageProps> = ({ userId }) => {
   const [events, setEvents] = useState<Event[]>([]); // 存儲日曆事件
   const [modalVisible, setModalVisible] = useState(false); // 控制新增事件的彈窗顯示
   const [currentEvent, setCurrentEvent] = useState<Event | null>(null); // 當前正在編輯的事件
@@ -80,99 +83,124 @@ const CalendarPage: React.FC = () => {
   const [value, setValue] = useState("");
 
   // 打開新建事件的彈窗
-  const openModal = (start: Date, end: Date, eventToEdit?: Event) => {
+  const openModal = (
+    eventStartTime: Date,
+    eventEndTime: Date,
+    eventToEdit?: Event
+  ) => {
     setCurrentEvent(
       eventToEdit || {
-        id: `${start}-${end}`,
-        title: "",
-        start,
-        end,
-        mood: "",
-        actionPlan: "",
-        reflection: "",
-        location: "",
-        color: "",
-        repeat: "none", // 默認無重複
-        completed: false, // 默認未完成
+        eventTitle: "",
+        eventLocation: "",
+        eventStartTime,
+        eventEndTime,
+        eventMood: "",
+        eventColor: "",
+        // eventRepeat: "none", // 默認無重複
+        isCompleted: false, // 默認未完成
+        userId: userId,
       }
     );
 
-    setStartTime(moment(start)); // 設置開始時間
-    setEndTime(moment(end)); // 設置結束時間
+    setStartTime(moment(eventStartTime)); // 設置開始時間
+    setEndTime(moment(eventEndTime)); // 設置結束時間
     setModalVisible(true);
   };
 
-  // 处理保存事件
-  const handleSaveEvent = (values: any) => {
+  // 處理保存事件
+  const handleSaveEvent = async (values: any) => {
     if (!values.title) {
       message.error("請輸入事件標題");
       return;
     }
+    console.log(userId);
 
     const updatedStart = startTime
-      ?.set({
-        hour: startTime?.hour(),
-        minute: startTime?.minute(),
-      })
-      .toDate();
+      ? startTime
+          .set({ hour: startTime.hour(), minute: startTime.minute() })
+          .toDate()
+      : new Date(); // 默認為當前時間
 
     const updatedEnd = endTime
-      ?.set({
-        hour: endTime?.hour(),
-        minute: endTime?.minute(),
-      })
-      .toDate();
+      ? endTime.set({ hour: endTime.hour(), minute: endTime.minute() }).toDate()
+      : new Date(); // 默認為當前時間
 
     const newEvent: Event = {
       ...currentEvent,
-      title: values.title,
-      mood: values.mood,
-      actionPlan: values.actionPlan,
-      reflection: values.reflection,
-      location: values.location,
-      color: values.color,
-      repeat: values.repeat,
-      start: updatedStart ?? currentEvent?.start,
-      end: updatedEnd ?? currentEvent?.end,
-      completed: currentEvent?.completed || false, // 保持完成狀態
+      eventTitle: values.title,
+      eventLocation: values.location,
+      eventStartTime: updatedStart,
+      eventEndTime: updatedEnd,
+      eventMood: values.mood,
+      eventColor: values.color,
+      // eventRepeat: values.repeat,
+      isCompleted: currentEvent?.isCompleted || false, // 保持完成狀態
+      userId: userId,
     };
+    console.log(newEvent);
+    try {
+      // 把前端的 event 數據發送到后端 API
+      const response = await axios.post(
+        "http://localhost:8080/api/calendar/events",
+        newEvent,
+        {
+          headers: {
+            "Content-Type": "application/json", // 改為 application/json
+            Authorization: `Bearer ${localStorage.getItem("jwtToken")}`,
+          },
+        }
+      );
 
-    const updatedEvents = events.filter(
-      (event) => event.id !== currentEvent?.id
-    );
-    const repeatedEvents = generateRepeatedEvents(newEvent);
-
-    setEvents([...updatedEvents, ...repeatedEvents]);
-    setModalVisible(false);
-    message.success("事件已保存");
+      // 將新保存的事件添加到事件列表
+      setEvents((prevEvents) => [...prevEvents, response.data]);
+      setModalVisible(false);
+      message.success("事件已保存");
+      setCurrentEvent(null);
+    } catch (error) {
+      console.error("保存事件失敗:", error);
+      message.error("保存事件失敗，請稍後再試");
+      setCurrentEvent(null);
+    }
   };
 
+  // 更新 generateRepeatedEvents 函數
   const generateRepeatedEvents = (event: Event) => {
     let repeatedEvents: Event[] = [event];
 
-    switch (event.repeat) {
+    switch (event.eventRepeat) {
       case "daily":
+        // 每日重複，生成 7 天的事件
         repeatedEvents = Array.from({ length: 7 }).map((_, index) => ({
           ...event,
-          id: `${event.id}-${index}`,
-          start: moment(event.start).add(index, "days").toDate(),
-          end: moment(event.end).add(index, "days").toDate(),
+          eventId: event.eventId + index, // 確保每個事件有唯一的 eventId
+          eventStartTime: moment(event.eventStartTime)
+            .add(index, "days")
+            .toDate(),
+          eventEndTime: moment(event.eventEndTime).add(index, "days").toDate(),
         }));
         break;
       case "weekly":
+        // 每週重複，生成 4 周的事件
         repeatedEvents = Array.from({ length: 4 }).map((_, index) => ({
           ...event,
-          id: `${event.id}-${index}`,
-          start: moment(event.start).add(index, "weeks").toDate(),
-          end: moment(event.end).add(index, "weeks").toDate(),
+          eventId: event.eventId + index, // 確保每個事件有唯一的 eventId
+          eventStartTime: moment(event.eventStartTime)
+            .add(index, "weeks")
+            .toDate(),
+          eventEndTime: moment(event.eventEndTime).add(index, "weeks").toDate(),
         }));
         break;
       case "monthly":
+        // 每月重複，生成 3 個月的事件
         repeatedEvents = Array.from({ length: 3 }).map((_, index) => ({
           ...event,
-          id: `${event.id}-${index}`,
-          start: moment(event.start).add(index, "months").toDate(),
-          end: moment(event.end).add(index, "months").toDate(),
+          eventId: event.eventId + index, // 確保每個事件有唯一的 eventId
+          eventStartTime: moment(event.eventStartTime)
+            .add(index, "months")
+            .toDate(),
+          eventEndTime: moment(event.eventEndTime)
+            .add(index, "months")
+            .toDate(),
         }));
         break;
       default:
@@ -183,70 +211,162 @@ const CalendarPage: React.FC = () => {
   };
 
   // 更新事件為完成
-  const markEventAsCompleted = () => {
+  const markEventAsCompleted = async () => {
     if (!currentEvent) return;
 
-    const updatedEvents = events.map((event) =>
-      event.id === currentEvent.id ? { ...event, completed: true } : event
-    );
-    setEvents(updatedEvents);
-    setModalVisible(false); // 关闭模态框
-    message.success("事件已標記為完成");
+    const newCompletionStatus = !currentEvent.isCompleted;
+
+    // 确保 eventId 是有效的
+    if (!currentEvent.eventId) {
+      console.error("Event ID is missing or invalid.");
+      message.error("事件ID无效，请重试");
+      return;
+    }
+
+    try {
+      const response = await axios.put(
+        `http://localhost:8080/api/calendar/events/complete`,
+        {
+          eventId: currentEvent.eventId,
+          userId: userId,
+          isCompleted: newCompletionStatus,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("jwtToken")}`,
+          },
+        }
+      );
+      // 更新事件状态
+      const updatedEvents = events.map((event) =>
+        event.eventId === currentEvent.eventId
+          ? { ...event, isCompleted: newCompletionStatus }
+          : event
+      );
+      setEvents(updatedEvents); // 更新本地事件列表
+
+      setModalVisible(false);
+      message.success(
+        newCompletionStatus ? "事件已標記成完成" : "事件已取消標記完成"
+      );
+    } catch (error) {
+      console.error("更新事件失敗:", error);
+      message.error("更新事件失敗，請稍後再試");
+    }
   };
 
   // 刪除事件
-  const deleteEvent = () => {
+  const deleteEvent = async () => {
     if (!currentEvent) return;
 
-    const updatedEvents = events.filter(
-      (event) => event.id !== currentEvent.id
-    );
-    setEvents(updatedEvents);
-    setModalVisible(false); // 关闭模态框
-    message.success("事件已刪除");
+    try {
+      const response = await axios.delete(
+        `http://localhost:8080/api/calendar/events`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("jwtToken")}`,
+          },
+          data: {
+            eventId: currentEvent.eventId,
+            userId: userId, // 確保傳遞用戶ID
+          },
+        }
+      );
+
+      if (response.status === 204) {
+        // 刪除成功後更新本地事件
+        const updatedEvents = events.filter(
+          (event) => event.eventId !== currentEvent.eventId
+        );
+        setEvents(updatedEvents);
+        setModalVisible(false); // 關閉彈窗
+        message.success("事件已刪除");
+      }
+    } catch (error) {
+      console.error("刪除事件失敗:", error);
+      message.error("刪除事件失敗，請稍後再試");
+    }
   };
 
+  // 事件樣式設定
   const eventStyleGetter = (event: Event) => {
     return {
       style: {
-        backgroundColor: event.completed ? "#BDC3C7" : event.color, // 已完成事件顏色變灰
-        borderBottom: `2px solid ${event.color}`,
-        textDecoration: event.completed ? "line-through" : "none", // 已完成的任務顯示刪除線
+        backgroundColor: event.isCompleted ? "#BDC3C7" : event.eventColor, // 已完成事件顏色變灰
+        borderBottom: `2px solid ${event.eventColor}`,
+        textDecoration: event.isCompleted ? "line-through" : "none", // 已完成的任務顯示刪除線
       },
     };
   };
 
   const handleEventClick = (event: Event) => {
-    openModal(event.start, event.end, event); // 打開模態框進行編輯
+    openModal(event.eventStartTime, event.eventEndTime, event); // 打開模態框進行編輯
   };
 
   useEffect(() => {
-    // 动态添加样式来禁用Agenda日期染色
+    const fetchEvents = async () => {
+      try {
+        const response = await axios.get(
+          `http://localhost:8080/api/calendar/events?userId=${userId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem("jwtToken")}`, // 如果有需要，可以添加認證token
+            },
+          }
+        );
+
+        // 打印返回的數據
+        console.log("API Response Data:", response.data);
+
+        // 如果有數據，映射它们並轉換時間格式
+        if (response.data && Array.isArray(response.data)) {
+          const formattedEvents = response.data.map((event: any) => ({
+            ...event,
+            eventStartTime: new Date(event.eventStartTime), // 轉換為 Date 对象
+            eventEndTime: new Date(event.eventEndTime), // 轉換為 Date 对象
+            start: new Date(event.eventStartTime), // 兼容 react-big-calendar 需要的字段
+            end: new Date(event.eventEndTime), // 兼容 react-big-calendar 需要的字段
+            title: event.eventTitle,
+          }));
+          setEvents(formattedEvents); // 更新事件數據
+        } else {
+          console.log("No events found for this user.");
+          setEvents([]); // 如果没有事件，清空事件
+        }
+      } catch (error) {
+        console.error("獲取事件失敗:", error);
+        message.error("獲取事件失敗，請稍候再試");
+      }
+    };
+
+    fetchEvents(); // 調用事件函數
+
+    // 禁用 Agenda 日期染色
     const style = document.createElement("style");
     style.innerHTML = `
       .rbc-agenda-date-cell {
         background-color: white !important;
-      }.rbc-agenda-time-cell {
+      }
+      .rbc-agenda-time-cell {
         background-color: white !important;
       }
       .rbc-agenda-event-cell {
         background-color: white !important;
-      }
-  `;
+    `;
     document.head.appendChild(style);
 
-    // 动态设置日历高度
+    // 動態設置日曆高度
     const handleResize = () => {
-      setCalendarHeight(window.innerHeight - 200); // 调整高度，根据需要改变200
+      setCalendarHeight(window.innerHeight - 200); // 根據需要改變 200
     };
 
-    handleResize(); // 初始化时设置高度
+    handleResize(); // 初始化高度設置
     window.addEventListener("resize", handleResize);
 
     return () => {
       window.removeEventListener("resize", handleResize);
     };
-  }, []);
+  }, [userId]); // 監聽使用者id變化
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
@@ -263,7 +383,7 @@ const CalendarPage: React.FC = () => {
             borderRight: "1px solid #e0e0e0",
           }}
         >
-          <TodoApp />
+          <TodoApp userId={userId} />
         </Sider>
 
         {/* Content */}
@@ -290,16 +410,16 @@ const CalendarPage: React.FC = () => {
                   } else {
                     message.error("請在非月視圖中創建事件");
                   }
-                }} // 选取日期范围时打开弹窗
+                }} // 日期範圍彈窗
                 selectable
-                eventPropGetter={eventStyleGetter} // 设置事件颜色
-                onSelectEvent={handleEventClick} // 点击事件进行编辑
-                views={{ month: true, week: true, day: true, agenda: true }} // 这里禁用了 month 视图下的点击添加事件功能
+                eventPropGetter={eventStyleGetter} // 事件顏色設置
+                onSelectEvent={handleEventClick} // 點擊事件編輯
+                views={{ month: true, week: true, day: true, agenda: true }} // 禁用month視圖下功能
                 onView={setView} // 更新视图
               />
             </div>
 
-            {/* 工具栏: 新增事件按钮 */}
+            {/* 工具欄: 新增事件按鈕 */}
             <div
               style={{
                 textAlign: "center",
@@ -310,8 +430,8 @@ const CalendarPage: React.FC = () => {
                 type="primary"
                 onClick={() => openModal(new Date(), new Date())}
                 style={{
-                  backgroundColor: "rgb(221 148 98)", // 可以根据需要设置按钮背景色
-                  borderColor: "rgb(221 148 98)", // 按钮边框颜色
+                  backgroundColor: "rgb(221 148 98)",
+                  borderColor: "rgb(221 148 98)",
                 }}
               >
                 新增事件
@@ -325,7 +445,10 @@ const CalendarPage: React.FC = () => {
       <Modal
         title={currentEvent ? "編輯事件" : "新增日程"}
         visible={modalVisible}
-        onCancel={() => setModalVisible(false)}
+        onCancel={() => {
+          setModalVisible(false);
+          setCurrentEvent(null);
+        }}
         footer={null}
         width={500}
       >
@@ -376,14 +499,14 @@ const CalendarPage: React.FC = () => {
           <Form.Item label="地點" name="location">
             <Input />
           </Form.Item>
-          <Form.Item label="重複" name="repeat">
+          {/* <Form.Item label="重複" name="repeat">
             <Radio.Group>
               <Radio.Button value="none">無</Radio.Button>
               <Radio.Button value="daily">每天</Radio.Button>
               <Radio.Button value="weekly">每週</Radio.Button>
               <Radio.Button value="monthly">每月</Radio.Button>
             </Radio.Group>
-          </Form.Item>
+          </Form.Item> */}
           <Form.Item label="開始時間" name="startTime">
             <DatePicker
               value={startTime}
@@ -409,7 +532,7 @@ const CalendarPage: React.FC = () => {
               htmlType="submit"
               block
             >
-              保存事件
+              {currentEvent ? "更新事件" : "保存事件"}
             </Button>
           </Form.Item>
         </Form>
@@ -431,9 +554,9 @@ const CalendarPage: React.FC = () => {
               標記為已完成
             </Button>
             <Popconfirm
-              title="你确定要删除这个事件吗?"
+              title="你確定要刪除這個事件嗎?"
               onConfirm={deleteEvent}
-              okText="删除"
+              okText="刪除"
               cancelText="取消"
             >
               <Button type="default" danger style={{ width: "45%" }}>

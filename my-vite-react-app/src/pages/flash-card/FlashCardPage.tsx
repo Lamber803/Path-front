@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Layout,
   Input,
@@ -11,6 +11,7 @@ import {
   Col,
   List,
 } from "antd";
+import axios from "axios";
 import {
   UploadOutlined,
   DeleteOutlined,
@@ -22,19 +23,29 @@ import styled from "styled-components";
 const { Title, Text } = Typography;
 const { Header, Footer, Sider, Content } = Layout;
 
-interface Flashcard {
+interface FlashCardPageProps {
+  userId: number; // 父组件传入的 userId
+}
+
+interface FlashcardDTO {
+  flashcardId?: number;
+  groupId: number;
   word: string;
   definition: string;
 }
 
-interface FlashcardGroup {
+interface FlashcardGroupDTO {
+  groupId?: number;
+  userId: number;
   groupName: string;
-  flashcards: Flashcard[];
-  favoriteFlashcards: Flashcard[]; // 新增收藏字卡數組
+  flashcards?: FlashcardDTO[];
+  favoriteFlashcards?: FlashcardDTO[];
 }
 
-const FlashCardPage: React.FC = () => {
-  const [flashcardGroups, setFlashcardGroups] = useState<FlashcardGroup[]>([]);
+const FlashCardPage: React.FC<FlashCardPageProps> = ({ userId }) => {
+  const [flashcardGroups, setFlashcardGroups] = useState<FlashcardGroupDTO[]>(
+    []
+  );
   const [newGroupName, setNewGroupName] = useState<string>("");
   const [newWord, setNewWord] = useState<string>("");
   const [newDefinition, setNewDefinition] = useState<string>("");
@@ -53,17 +64,79 @@ const FlashCardPage: React.FC = () => {
   const [userAnswer, setUserAnswer] = useState<string>("");
   const [score, setScore] = useState<number>(0);
   const [isViewingFavorites, setIsViewingFavorites] = useState<boolean>(false); // 控制是否查看收藏庫
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (userId) {
+      setLoading(true);
+      setError(null);
+
+      // 發送 API 請求查詢文檔
+      axios
+        .get(
+          `http://localhost:8080/api/flashcard-group/user?userId=${userId}`,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${localStorage.getItem("jwtToken")}`,
+            },
+          }
+        )
+        .then((response) => {
+          const data = response.data;
+          console.log(data); // 查看返回的數據結構
+
+          // 檢查返回的數據是否為陣列
+          if (Array.isArray(data)) {
+            setFlashcardGroups(data); // 設置為 pomodoros
+            // 假设返回的数据中包含了全局的工作时间和休息时间配置
+            // 只要任务列表非空，设置工作时间和休息时间
+          } else {
+            setError("返回的數據格式無效");
+          }
+        })
+        .catch(() => {
+          setError("無法加載文檔");
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    }
+  }, [userId]);
 
   // 創建字卡組別
   const handleCreateGroup = () => {
     if (newGroupName) {
-      setFlashcardGroups([
-        ...flashcardGroups,
-        { groupName: newGroupName, flashcards: [], favoriteFlashcards: [] }, // Initialize favoriteFlashcards as an empty array
-      ]);
-      setNewGroupName("");
-      setIsGroupModalVisible(false);
-      message.success("字卡組別創建成功！");
+      const newGroupData: FlashcardGroupDTO = {
+        groupName: newGroupName,
+        userId: userId, // 当前用户的 ID
+        flashcards: [], // 初始时字卡组为空
+        favoriteFlashcards: [], // 初始时没有收藏的字卡
+      };
+
+      // 发送 API 请求来创建字卡组
+      axios
+        .post(
+          "http://localhost:8080/api/flashcard-group/create", // 后端的创建字卡组接口
+          newGroupData,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${localStorage.getItem("jwtToken")}`,
+            },
+          }
+        )
+        .then((response) => {
+          // 请求成功后，更新字卡组列表
+          const createdGroup = response.data;
+          setFlashcardGroups((prevGroups) => [...prevGroups, createdGroup]);
+          setNewGroupName(""); // 清空输入框
+          setIsGroupModalVisible(false); // 关闭模态框
+          message.success("字卡組別創建成功！");
+        })
+        .catch(() => {
+          message.error("创建字卡组失败，请稍后再试！");
+        });
     } else {
       message.error("請輸入組別名稱");
     }
@@ -85,15 +158,38 @@ const FlashCardPage: React.FC = () => {
     });
   };
 
-  // 添加字卡
   const handleAddCard = () => {
     if (selectedGroupIndex !== null && newWord && newDefinition) {
-      const updatedGroups = [...flashcardGroups];
-      updatedGroups[selectedGroupIndex].flashcards.push({
+      const selectedGroup = flashcardGroups[selectedGroupIndex];
+
+      // Check if the selected group is defined
+      if (!selectedGroup) {
+        message.error("無效的組別，請選擇一個有效的組別");
+        return;
+      }
+
+      const groupId = selectedGroup.groupId; // Get the groupId from the selected group
+
+      // Make sure the groupId is valid
+      if (!groupId) {
+        message.error("該組別無效，請選擇一個有效的組別");
+        return;
+      }
+
+      // Create a new flashcard with the groupId
+      const newFlashcard: FlashcardDTO = {
         word: newWord,
         definition: newDefinition,
-      });
+        groupId: groupId, // Include the groupId here
+      };
+
+      // Update the flashcards in the selected group
+      if (selectedGroupIndex !== null) {
+  const updatedGroups = [...flashcardGroups];
+  const group = updatedGroups[selectedGroupIndex].flashcards.push(newFlashcard);
       setFlashcardGroups(updatedGroups);
+
+      // Reset input fields and close modal
       setNewWord("");
       setNewDefinition("");
       setIsCardModalVisible(false);
@@ -317,8 +413,9 @@ const FlashCardPage: React.FC = () => {
               style={{ marginTop: "20px", flex: 1, overflowY: "auto" }}
               bordered
               dataSource={flashcardGroups}
-              renderItem={(group: FlashcardGroup, index: number) => (
+              renderItem={(group) => (
                 <List.Item
+                  key={group.groupId}
                   style={{ display: "flex", justifyContent: "space-between" }}
                 >
                   <div
@@ -336,13 +433,13 @@ const FlashCardPage: React.FC = () => {
                       type="text"
                       icon={<StarOutlined />}
                       onClick={() => setIsViewingFavorites(!isViewingFavorites)}
-                      style={{ marginRight: "10px" }}
+                      // style={{ marginRight: "5px" }}
                     ></Button>
                     <Button
                       type="text"
                       icon={<UploadOutlined />}
                       onClick={() => showCardModal(index)}
-                      style={{ marginRight: "10px" }}
+                      // style={{ marginRight: "10px" }}
                     />
                     <Button
                       type="text"

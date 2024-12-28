@@ -17,7 +17,7 @@ import tomatoImage6 from "./image/tomato6.png";
 import { updatePomodoroSettings } from "./PomodoroApi";
 
 interface PomodoroPageProps {
-  userId: number; // 父组件传入的 userId
+  userId: number; // 父組件傳入的 userId
 }
 interface PomodoroDTO {
   pomodoroId: number;
@@ -25,7 +25,7 @@ interface PomodoroDTO {
   workDuration: number;
   breakDuration: number;
   totalTime: number;
-  userId: number; // 或者根据实际数据结构调整
+  userId: number;
 }
 const HoverButton = styled(Button)`
   background-color: #ad4545;
@@ -40,8 +40,8 @@ const PomodoroTimer: React.FC<PomodoroPageProps> = ({ userId }) => {
   const [pomodoroVisible, setPomodoroVisible] = useState(false); // 控制 Pomodoro 計時器視窗顯示
   const [isCreatingTask, setIsCreatingTask] = useState(false); // 是否在創建新任務的狀態
   const [currentTask, setCurrentTask] = useState<string>(""); // 當前選中的任務名稱
-  const [currentTaskId, setCurrentTaskId] = useState<number | null>(null); // 当前任务ID
-  const [tasks, setTasks] = useState<PomodoroDTO[]>([]); // 初始化为空数组 // 存儲任務列表和累計時長
+  const [currentTaskId, setCurrentTaskId] = useState<number | null>(null); // 當前任務ID
+  const [tasks, setTasks] = useState<PomodoroDTO[]>([]); // 初始為空數组 // 存儲任務列表和累計時長
 
   const [isRunning, setIsRunning] = useState(false); // 是否運行中
   const [timeLeft, setTimeLeft] = useState(25 * 60); // 預設工作時間 25 分鐘
@@ -75,8 +75,8 @@ const PomodoroTimer: React.FC<PomodoroPageProps> = ({ userId }) => {
           // 檢查返回的數據是否為陣列
           if (Array.isArray(data)) {
             setTasks(data); // 設置為 pomodoros
-            // 假设返回的数据中包含了全局的工作时间和休息时间配置
-            // 只要任务列表非空，设置工作时间和休息时间
+            // 假設返回的數據中包含了全局的工作時間和休息時間配置
+            // 只要任務列表非空，設置工作時間和休息時間
           } else {
             setError("返回的數據格式無效");
           }
@@ -123,7 +123,7 @@ const PomodoroTimer: React.FC<PomodoroPageProps> = ({ userId }) => {
   // 當用戶點擊「新增學習任務」按鈕時，顯示番茄鐘設定彈窗
   const handleCreateTask = () => {
     setIsCreatingTask(true); // 開啟創建任務的彈窗
-    setCurrentTaskId(null); // 或者设置为空字符串/初始状态
+    setCurrentTaskId(null); // 或者設置為空字符串/初始狀態
     setPomodoroVisible(true); // 顯示 Pomodoro 計時器視窗
   };
   // 保存任務後自動添加到任務列表
@@ -150,7 +150,6 @@ const PomodoroTimer: React.FC<PomodoroPageProps> = ({ userId }) => {
           },
         }
       );
-      console.log(response.data); // 打印响应数据
 
       setTasks([...tasks, response.data]); // 將新任務添加到任務列表
       setPomodoroVisible(false); // 關閉彈窗
@@ -168,7 +167,7 @@ const PomodoroTimer: React.FC<PomodoroPageProps> = ({ userId }) => {
   // 用戶編輯計劃名稱
   const handleEditPlanName = async () => {
     console.log("edit!");
-    setIsEditable((prev) => !prev); // 正确更新状态
+    setIsEditable((prev) => !prev); // 正確更新狀態
     if (currentTaskId !== null) {
       console.log("checker");
       const data = {
@@ -181,7 +180,7 @@ const PomodoroTimer: React.FC<PomodoroPageProps> = ({ userId }) => {
         const result = await updatePomodoroSettings(data, "name");
         console.log("名稱更新成功:", result);
 
-        // 更新前端本地状态
+        // 更新前端本地狀態
         setTasks((prevTasks) =>
           prevTasks.map((task) =>
             task.pomodoroId === currentTaskId
@@ -190,7 +189,7 @@ const PomodoroTimer: React.FC<PomodoroPageProps> = ({ userId }) => {
           )
         );
       } catch (error) {
-        console.error("更新名稱失败:", error);
+        console.error("更新名稱失敗:", error);
       }
     } else {
       console.log("currentTaskId === null");
@@ -235,7 +234,7 @@ const PomodoroTimer: React.FC<PomodoroPageProps> = ({ userId }) => {
             : task
         )
       );
-      // 调用 API 更新任务的总时长到数据库
+      // 更新總時長到資料庫
       const data = {
         pomodoroId: currentTaskId, // 包含 pomodoroId
         workDuration: workDuration,
@@ -250,7 +249,7 @@ const PomodoroTimer: React.FC<PomodoroPageProps> = ({ userId }) => {
         console.error("保存任务时间失败:", error);
         message.error("任务保存失败，请稍后再试");
       }
-      await fetchTasks(); // 重新请求任务列表并更新前端
+      await fetchTasks(); // 重新請求任務列表並更新到前端
     }
 
     setTimeElapsed(0);
@@ -267,38 +266,34 @@ const PomodoroTimer: React.FC<PomodoroPageProps> = ({ userId }) => {
           },
         }
       );
-      setTasks(response.data); // 假设返回的数据格式符合你的需求
+      setTasks(response.data); //
     } catch (error) {
-      console.error("获取任务列表失败:", error);
-      message.error("获取任务列表失败，请稍后再试");
+      console.error("獲取任務列表失敗:", error);
+      message.error("獲取任務列表失敗，請稍後再試");
     }
   };
 
   // 刪除任務
   const handleDeleteTask = async (taskId: number) => {
     try {
-      // 发送 DELETE 请求到后端
       const response = await axios.delete(
         `http://localhost:8080/api/pomodoro/tasks/delete`,
         {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem("jwtToken")}`, // 添加用户的JWT token
+            Authorization: `Bearer ${localStorage.getItem("jwtToken")}`,
           },
           data: {
-            pomodoroId: taskId, // 传递要删除的任务ID
-            userId: userId, // 传递当前用户ID
+            pomodoroId: taskId,
+            userId: userId,
           },
         }
       );
 
-      // 如果请求成功，更新前端列表
-      if (response.status === 204) {
-        const updatedTasks = tasks.filter(
-          (task) => task.pomodoroId !== currentTaskId
-        );
-        setTasks(updatedTasks);
-        message.success("任務已刪除");
-      }
+      const updatedTasks = tasks.filter(
+        (task) => task.pomodoroId !== currentTaskId
+      );
+      setTasks(updatedTasks);
+      message.success("任務已刪除");
     } catch (error) {
       console.error("刪除任務失敗:", error);
       message.error("刪除任務失敗，請稍後再試");

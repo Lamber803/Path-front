@@ -36,6 +36,28 @@ const Chart = () => {
   const handleChartTypeChange = (value) => {
     setChartType(value);
     setData([]); // 重置數據
+    setChartColors([]); // 清空顏色選擇
+  };
+  // 根據圖表類型設置顏色選擇器的數量
+  const getColorPickerCount = () => {
+    switch (chartType) {
+      case "area":
+        return 1; // 面積圖只有一個顏色選擇器
+      case "pie":
+        return data.length; // 圓餅圖顏色選擇器數量根據數據個數
+      case "stacked-bar":
+        return 2; // 堆疊柱狀圖兩個顏色選擇器
+      case "bar":
+        return 1; // 柱狀圖只有一個顏色選擇器
+      default:
+        return 1; // 預設返回1
+    }
+  };
+  // 處理顏色選擇
+  const handleColorChange = (color, index) => {
+    const newColors = [...chartColors];
+    newColors[index] = color.hex;
+    setChartColors(newColors);
   };
 
   // 處理數據變化
@@ -88,10 +110,10 @@ const Chart = () => {
 
     const updatedCharts = [...charts];
     if (editChartIndex !== null) {
-      // 如果是編輯模式，更新已有圖表
+      // 如果是编辑模式，更新已有图表
       updatedCharts[editChartIndex] = newChart;
     } else {
-      // 否則新增圖表
+      // 否则新增图表
       updatedCharts.push(newChart);
     }
 
@@ -103,20 +125,13 @@ const Chart = () => {
     setEditChartIndex(null); // 清除編輯索引
   };
 
-  // 顏色變化
-  const handleColorChange = (color, index) => {
-    const newColors = [...chartColors];
-    newColors[index] = color.hex;
-    setChartColors(newColors);
-  };
-
   // 渲染圖表
   const renderChart = (chart) => {
     const { type, data, colors } = chart;
 
     if (type === "area") {
       return (
-        <AreaChart width={300} height={200} data={data}>
+        <AreaChart width={500} height={400} data={data}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="name" />
           <YAxis />
@@ -196,7 +211,18 @@ const Chart = () => {
   };
 
   return (
-    <div className="chart-container">
+    <div
+      className="chart-container"
+      style={{
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        height: "100%", // 讓 Chart 充滿容器的高度
+        width: "100%", // 讓 Chart 充滿容器的寬度
+        backgroundColor: "#f0f0f0", // 可以設置背景色以便更容易看到效果
+        borderRadius: "8px", // 可以讓邊角有圓角
+      }}
+    >
       {/* <h1>{chartName || "Chart Generator"}</h1> */}
 
       {showButton && (
@@ -216,6 +242,12 @@ const Chart = () => {
           <div
             key={index}
             className={`chart-item layout-${chart.layoutPosition}`}
+            style={{
+              flexBasis: "100%", // 每個圖表佔據容器的100%寬度
+              height: "100%", // 高度也為100%
+              marginBottom: "20px",
+              textAlign: "center",
+            }}
           >
             <h3>{chart.name}</h3>
             {renderChart(chart)}
@@ -257,13 +289,13 @@ const Chart = () => {
             />
           </Form.Item>
 
-          {/* Color Picker for chart */}
+          {/* 顏色選擇器 */}
           <div>
-            {chartColors.map((color, index) => (
+            {Array.from({ length: getColorPickerCount() }).map((_, index) => (
               <div key={index}>
-                <p>自定義調色 {index + 1}</p>
+                <p>顏色選擇 {index + 1}</p>
                 <SketchPicker
-                  color={color}
+                  color={chartColors[index] || "#000000"}
                   onChangeComplete={(color) => handleColorChange(color, index)}
                 />
               </div>

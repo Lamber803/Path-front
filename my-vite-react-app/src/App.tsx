@@ -46,8 +46,8 @@ const App: React.FC = () => {
       {/* 讀取文檔頁 */}
       {/* <Route path="/documents/read" element={<MainContent />} /> */}
 
-      <Route path="/card" element={<FlashCardPage />} />
-      <Route path="/progress" element={<ChartPage />} />
+      <Route path="/card" element={<FlashCardPage userId={userId!} />} />
+      <Route path="/progress" element={<ChartPage userId={userId!} />} />
     </Routes>
   );
 };

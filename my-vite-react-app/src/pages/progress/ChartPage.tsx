@@ -1,28 +1,46 @@
 import React, { useState } from "react";
 import { Layout, Button, Modal, Select } from "antd";
-import Chart from "./chart";
+import Chart from "./Chart";
 import CustomHeader from "../custom-header/CustomHeader";
+import axios from "axios";
 
 const { Content } = Layout;
+interface ChartPageProps {
+  userId: number; // 父组件传入的 userId
+}
 
-const ChartPage: React.FC = () => {
+const ChartPage: React.FC<ChartPageProps> = ({ userId }) => {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [layout, setLayout] = useState<string>("full"); // 預設為滿版佈局
-  const [subLayout, setSubLayout] = useState<string>("horizontal"); // 用於二分和三分的子佈局
   const [showButton, setShowButton] = useState(true); // 控制按鈕顯示狀態
 
   const handleLayoutChange = (value: string) => {
     setLayout(value);
-    setIsModalVisible(false);
+    setIsModalVisible(false); // 設置選擇後關閉模態框
   };
 
-  const handleSubLayoutChange = (value: string) => {
-    setSubLayout(value);
-  };
+  // 根據選擇的布局來設置格子
+  const generateChartGrids = () => {
+    const charts = [];
+    let numCharts = 0;
 
-  const handleButtonClick = () => {
-    setIsModalVisible(true);
-    setShowButton(false); // 隱藏按鈕
+    // 定義每種布局需要的圖表數量
+    if (layout === "full") {
+      numCharts = 1;
+    } else if (layout === "two") {
+      numCharts = 2;
+    } else if (layout === "four") {
+      numCharts = 4;
+    } else if (layout === "six") {
+      numCharts = 6;
+    }
+
+    // 根據選擇的數量來生成對應的 Chart 元件
+    for (let i = 0; i < numCharts; i++) {
+      charts.push(<Chart key={i} />);
+    }
+
+    return charts;
   };
 
   return (
@@ -32,6 +50,7 @@ const ChartPage: React.FC = () => {
         menuColor={{ frontColor: "#ffe6e6", hoverColor: "#d0c1c1" }}
       />
       <Layout style={{ padding: "20px", position: "relative" }}>
+        {/* 始終顯示 layout 按鈕 */}
         {showButton && (
           <Button
             style={{
@@ -55,65 +74,31 @@ const ChartPage: React.FC = () => {
             margin: "0 16px",
             borderRadius: "8px",
             display: "grid",
+            // 動態根據選擇的布局來設置列數
             gridTemplateColumns:
               layout === "full"
                 ? "1fr"
                 : layout === "two"
-                ? subLayout === "horizontal"
-                  ? "1fr 1fr"
-                  : "1fr"
-                : layout === "three"
-                ? subLayout === "horizontal"
-                  ? "1fr 1fr"
-                  : "1fr 1fr"
+                ? "1fr 1fr"
                 : layout === "four"
-                ? "1fr 1fr 1fr 1fr"
-                : "1fr 1fr 1fr 1fr 1fr 1fr", // 六等份
+                ? "1fr 1fr" // 2列
+                : "1fr 1fr 1fr", // 3列
+
+            gridTemplateRows:
+              layout === "full"
+                ? "1fr"
+                : layout === "two"
+                ? "1fr"
+                : layout === "four"
+                ? "1fr 1fr" // 2行
+                : "1fr 1fr", // 2行
+
             gridGap: "20px",
-            height: "calc(100vh - 120px)", // 設置高度防止滾動條
+            height: "calc(100vh - 120px)", // 防止滾動條
             overflow: "hidden",
           }}
         >
-          {layout === "full" && <Chart />}
-          {layout === "two" && (
-            <>
-              <Chart />
-              <Chart />
-            </>
-          )}
-          {layout === "three" && (
-            <>
-              {subLayout === "horizontal" ? (
-                <>
-                  <Chart />
-                  <Chart />
-                </>
-              ) : (
-                <>
-                  <Chart />
-                  <Chart />
-                </>
-              )}
-            </>
-          )}
-          {layout === "four" && (
-            <>
-              <Chart />
-              <Chart />
-              <Chart />
-              <Chart />
-            </>
-          )}
-          {layout === "six" && (
-            <>
-              <Chart />
-              <Chart />
-              <Chart />
-              <Chart />
-              <Chart />
-              <Chart />
-            </>
-          )}
+          {generateChartGrids()}
         </Content>
       </Layout>
 
@@ -130,22 +115,9 @@ const ChartPage: React.FC = () => {
         >
           <Select.Option value="full">Full Width</Select.Option>
           <Select.Option value="two">2 Columns</Select.Option>
-          <Select.Option value="three">3 Columns</Select.Option>
-          <Select.Option value="four">4 Columns</Select.Option>
-          <Select.Option value="six">6 Columns</Select.Option>
+          <Select.Option value="four">4 Columns (2x2)</Select.Option>
+          <Select.Option value="six">6 Columns (2x3)</Select.Option>
         </Select>
-        {layout === "two" || layout === "three" ? (
-          <div style={{ marginTop: "20px" }}>
-            <Select
-              style={{ width: "100%" }}
-              value={subLayout}
-              onChange={handleSubLayoutChange}
-            >
-              <Select.Option value="horizontal">Horizontal Split</Select.Option>
-              <Select.Option value="vertical">Vertical Split</Select.Option>
-            </Select>
-          </div>
-        ) : null}
       </Modal>
     </Layout>
   );

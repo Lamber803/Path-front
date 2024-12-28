@@ -6,7 +6,6 @@ import {
   FolderAddOutlined,
 } from "@ant-design/icons"; // 添加文件夹图标
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
 import CustomHeader from "../custom-header/CustomHeader";
 
 const { Sider, Content } = Layout;
@@ -16,8 +15,8 @@ const { Panel } = Collapse;
 interface Document {
   documentId: number;
   title: string;
-  parentId: number | null;
-  url: string;
+  parentId: number | null; // 用于表示文件夹层级，根级文件夹为null
+  url: string; // 由于后端没有返回 url，url 可以为空
 }
 
 const DocumentsPage: React.FC = () => {
@@ -28,38 +27,30 @@ const DocumentsPage: React.FC = () => {
   const [creatingFolder, setCreatingFolder] = useState<boolean>(false); // 控制文件夹创建弹窗
   const navigate = useNavigate(); // 使用 useNavigate 来控制页面跳转
 
-  // 假设用户ID已经获取
-  const userId = 1; // 示例：当前用户ID
-
   useEffect(() => {
-    // 获取用户的文档数据
+    // 数据加载逻辑将待后端 API 集成
     setLoading(true);
-    axios
-      .get(`/api/documents/search?userId=${userId}`)
-      .then((response) => {
-        setDocuments(response.data);
-        setLoading(false);
-      })
-      .catch((error) => {
-        setLoading(false);
-        message.error("加载文档失败");
-      });
-  }, [userId]);
+    setTimeout(() => {
+      // 模拟加载完成
+      setDocuments([]); // 初始为空，之后从后端获取数据
+      setLoading(false);
+    }, 1000);
+  }, []);
 
   const handleDocumentClick = (documentId: number) => {
-    console.log("Navigating to document:", documentId);
-    navigate(`/documents/read?documentId=${documentId}`);
+    console.log("Navigating to document:", documentId); // 确保 documentId 正确传递
+    navigate(`/documents/read?documentId=${documentId}`); // 跳转到文档详情页
   };
 
   const handleEditClick = (document: Document) => {
     setEditingDocument(document);
-    setModalVisible(true);
+    setModalVisible(true); // 打开编辑弹窗
   };
 
   const handleDeleteClick = async (documentId: number) => {
     try {
       // 后端删除逻辑待后续实现
-      setDocuments(documents.filter((doc) => doc.documentId !== documentId));
+      setDocuments(documents.filter((doc) => doc.documentId !== documentId)); // 删除成功后从列表中移除该文档
       message.success("文档删除成功");
     } catch (error) {
       console.error("Error deleting document:", error);
@@ -68,7 +59,7 @@ const DocumentsPage: React.FC = () => {
   };
 
   const handleCreateFolderClick = () => {
-    setCreatingFolder(true);
+    setCreatingFolder(true); // 打开创建文件夹弹窗
   };
 
   const handleModalOk = async () => {
@@ -77,6 +68,7 @@ const DocumentsPage: React.FC = () => {
       return;
     }
     try {
+      // 后端编辑逻辑待后续实现
       setDocuments(
         documents.map((doc) =>
           doc.documentId === editingDocument.documentId
@@ -93,12 +85,12 @@ const DocumentsPage: React.FC = () => {
   };
 
   const handleModalCancel = () => {
-    setModalVisible(false);
+    setModalVisible(false); // 关闭编辑弹窗
   };
 
   const handleCreateFolderOk = (folderName: string) => {
     const newFolder = {
-      documentId: Date.now(),
+      documentId: Date.now(), // 使用时间戳作为文件夹ID
       title: folderName,
       parentId: null,
       url: "",
@@ -109,15 +101,16 @@ const DocumentsPage: React.FC = () => {
   };
 
   const handleCreateFolderCancel = () => {
-    setCreatingFolder(false);
+    setCreatingFolder(false); // 关闭文件夹创建弹窗
   };
 
-  // 递归渲染文档
+  // 递归渲染文档和文件夹
   const renderDocuments = (parentId: number | null) => {
     return documents
       .filter((doc) => doc.parentId === parentId)
       .map((doc) => {
-        if (!doc.title) return null;
+        // 确保文档有标题
+        if (!doc.title) return null; // 如果没有标题，则跳过该文档的渲染
 
         return {
           key: doc.documentId,
@@ -141,7 +134,7 @@ const DocumentsPage: React.FC = () => {
                   fontWeight: "bold",
                   textAlign: "left",
                   paddingLeft: 0,
-                  fontSize: "14px",
+                  fontSize: "14px", // 调整字体大小
                 }}
               >
                 {doc.title}
@@ -151,41 +144,56 @@ const DocumentsPage: React.FC = () => {
                   type="link"
                   onClick={() => handleEditClick(doc)}
                   icon={<EditOutlined />}
-                  style={{ marginRight: 8, fontSize: 14 }}
+                  style={{
+                    marginRight: 8,
+                    fontSize: 14, // 调整图标大小
+                  }}
                 />
                 <Button
                   type="link"
                   onClick={() => handleDeleteClick(doc.documentId)}
                   icon={<DeleteOutlined />}
                   danger
-                  style={{ fontSize: 14, marginLeft: 8 }}
+                  style={{
+                    fontSize: 14, // 调整图标大小
+                    marginLeft: 8,
+                  }}
                 />
               </div>
             </div>
           ),
-          children: renderDocuments(doc.documentId),
+          children: renderDocuments(doc.documentId), // 递归渲染子文档
         };
       });
   };
 
   return (
     <Layout style={{ minHeight: "100vh", backgroundColor: "#f7f4f1" }}>
+      {/* Header */}
       <CustomHeader
         bgColor="#e9af88"
         menuColor={{ frontColor: "#000000", hoverColor: "#fff" }}
       />
 
       <Layout>
-        <Sider width={250} style={{ background: "#f7f4f1", padding: "20px" }}>
+        {/* Sidebar */}
+        <Sider
+          width={250}
+          style={{
+            background: "#f7f4f1",
+            padding: "20px",
+          }}
+        >
           <div
             style={{
               flex: 1,
               display: "flex",
               flexDirection: "column",
-              overflowY: "auto",
-              maxHeight: "85vh",
+              overflowY: "auto", // 使 Sider 可滾動
+              maxHeight: "85vh", // 确保 Sider 不会超出屏幕高度
             }}
           >
+            {/* <h2 style={{ paddingLeft: "10px" }}>我的文档</h2>
             <Button
               type="primary"
               icon={<FolderAddOutlined />}
@@ -198,12 +206,13 @@ const DocumentsPage: React.FC = () => {
               <Collapse
                 defaultActiveKey={["1"]}
                 ghost
-                items={renderDocuments(null)}
+                items={renderDocuments(null)} // 渲染根文档
               />
-            </Spin>
+            </Spin> */}
           </div>
         </Sider>
 
+        {/* Content */}
         <Layout style={{ padding: "20px" }}>
           <Content
             style={{
@@ -218,6 +227,7 @@ const DocumentsPage: React.FC = () => {
         </Layout>
       </Layout>
 
+      {/* 编辑文档弹窗 */}
       <Modal
         title="编辑文档"
         visible={modalVisible}
@@ -227,12 +237,16 @@ const DocumentsPage: React.FC = () => {
         <Input
           value={editingDocument?.title || ""}
           onChange={(e) =>
-            setEditingDocument({ ...editingDocument!, title: e.target.value })
+            setEditingDocument({
+              ...editingDocument!,
+              title: e.target.value,
+            })
           }
           placeholder="请输入文档标题"
         />
       </Modal>
 
+      {/* 创建文件夹弹窗 */}
       <Modal
         title="新建文件夹"
         visible={creatingFolder}
