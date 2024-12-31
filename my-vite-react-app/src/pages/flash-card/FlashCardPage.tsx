@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Layout,
   Input,
@@ -32,6 +32,7 @@ interface FlashcardDTO {
   groupId: number;
   word: string;
   definition: string;
+  isFavorite: boolean;
 }
 
 interface FlashcardGroupDTO {
@@ -39,7 +40,6 @@ interface FlashcardGroupDTO {
   userId: number;
   groupName: string;
   flashcards?: FlashcardDTO[];
-  favoriteFlashcards?: FlashcardDTO[];
 }
 
 const FlashCardPage: React.FC<FlashCardPageProps> = ({ userId }) => {
@@ -64,8 +64,11 @@ const FlashCardPage: React.FC<FlashCardPageProps> = ({ userId }) => {
   const [userAnswer, setUserAnswer] = useState<string>("");
   const [score, setScore] = useState<number>(0);
   const [isViewingFavorites, setIsViewingFavorites] = useState<boolean>(false); // 控制是否查看收藏庫
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // 假設在這裡你會發送 API 請求來加載收藏庫
+
   useEffect(() => {
     if (userId) {
       setLoading(true);
@@ -88,15 +91,13 @@ const FlashCardPage: React.FC<FlashCardPageProps> = ({ userId }) => {
 
           // 檢查返回的數據是否為陣列
           if (Array.isArray(data)) {
-            setFlashcardGroups(data); // 設置為 pomodoros
-            // 假设返回的数据中包含了全局的工作时间和休息时间配置
-            // 只要任务列表非空，设置工作时间和休息时间
+            setFlashcardGroups(data);
           } else {
             setError("返回的數據格式無效");
           }
         })
         .catch(() => {
-          setError("無法加載文檔");
+          setError("無法加載字卡組");
         })
         .finally(() => {
           setLoading(false);
@@ -104,15 +105,55 @@ const FlashCardPage: React.FC<FlashCardPageProps> = ({ userId }) => {
     }
   }, [userId]);
 
+  // 查詢該字卡組下的所有字卡
+  useEffect(() => {
+    if (selectedGroupIndex !== null) {
+      setLoading(true);
+      setError(null);
+
+      const groupId = flashcardGroups[selectedGroupIndex]?.groupId;
+
+      if (groupId) {
+        axios
+          .get(`http://localhost:8080/api/flashcard/group?groupId=${groupId}`, {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${localStorage.getItem("jwtToken")}`,
+            },
+          })
+          .then((response) => {
+            const data = response.data;
+            console.log("返回的字卡數據:", data);
+
+            // 更新选中的字卡组
+            setFlashcardGroups((prevGroups) =>
+              prevGroups.map((group, index) =>
+                index === selectedGroupIndex
+                  ? { ...group, flashcards: data }
+                  : group
+              )
+            );
+          })
+          .catch(() => {
+            setError("無法加載字卡");
+          })
+          .finally(() => {
+            setLoading(false);
+          });
+      }
+    }
+  }, [selectedGroupIndex]); // 只依赖 selectedGroupIndex
+
   // 創建字卡組別
-  const handleCreateGroup = () => {
+  const handleCreateGroup = useCallback(() => {
     if (newGroupName) {
       const newGroupData: FlashcardGroupDTO = {
         groupName: newGroupName,
         userId: userId, // 当前用户的 ID
         flashcards: [], // 初始时字卡组为空
-        favoriteFlashcards: [], // 初始时没有收藏的字卡
       };
+
+      setLoading(true);
 
       // 发送 API 请求来创建字卡组
       axios
@@ -135,12 +176,13 @@ const FlashCardPage: React.FC<FlashCardPageProps> = ({ userId }) => {
           message.success("字卡組別創建成功！");
         })
         .catch(() => {
-          message.error("创建字卡组失败，请稍后再试！");
-        });
+          message.error("創建字卡组失敗，請稍候再試！");
+        })
+        .finally(() => setLoading(false));
     } else {
       message.error("請輸入組別名稱");
     }
-  };
+  }, [newGroupName, userId]);
 
   // 刪除字卡組別
   const handleDeleteGroup = (index: number) => {
@@ -150,78 +192,148 @@ const FlashCardPage: React.FC<FlashCardPageProps> = ({ userId }) => {
       okText: "刪除",
       cancelText: "取消",
       onOk: () => {
-        const updatedGroups = flashcardGroups.filter((_, i) => i !== index);
-        setFlashcardGroups(updatedGroups);
-        setSelectedGroupIndex(null); // 刪除後，清空選中的組別
-        message.success("字卡組別已刪除！");
+        const groupId = flashcardGroups[index].groupId; // Get the groupId of the selected group
+        setLoading(true);
+
+        axios
+          .delete(
+            `http://localhost:8080/api/flashcard-group/delete?groupId=${groupId}`,
+            {
+              headers: {
+                Authorization: `Bearer ${localStorage.getItem("jwtToken")}`, // Ensure the token is passed
+              },
+            }
+          )
+          .then(() => {
+            const updatedGroups = flashcardGroups.filter((_, i) => i !== index); // Remove the group from the list
+            setFlashcardGroups(updatedGroups); // Update state with the new list
+            setSelectedGroupIndex(null); // Clear selected group index
+            message.success("字卡組別已刪除！"); // Show success message
+          })
+          .catch((error) => {
+            if (error.response) {
+              if (error.response.status === 404) {
+                message.error("字卡組別不存在，請確認是否已被刪除！");
+              } else if (error.response.status === 500) {
+                message.error("伺服器錯誤，刪除字卡組別失敗！");
+              } else {
+                message.error("刪除字卡組別失敗，請稍後再試！");
+              }
+            } else {
+              message.error("網絡錯誤，請檢查您的網絡連接！");
+            }
+          })
+          .finally(() => setLoading(false));
       },
     });
   };
 
-  const handleAddCard = () => {
+  const handleAddCard = useCallback(() => {
     if (selectedGroupIndex !== null && newWord && newDefinition) {
       const selectedGroup = flashcardGroups[selectedGroupIndex];
 
-      // Check if the selected group is defined
       if (!selectedGroup) {
         message.error("無效的組別，請選擇一個有效的組別");
         return;
       }
 
-      const groupId = selectedGroup.groupId; // Get the groupId from the selected group
+      const groupId = selectedGroup.groupId;
 
-      // Make sure the groupId is valid
       if (!groupId) {
         message.error("該組別無效，請選擇一個有效的組別");
         return;
       }
 
-      // Create a new flashcard with the groupId
-      const newFlashcard: FlashcardDTO = {
+      const newFlashcardDTO: FlashcardDTO = {
         word: newWord,
         definition: newDefinition,
-        groupId: groupId, // Include the groupId here
+        groupId: groupId,
+        isFavorite: false,
       };
 
-      // Update the flashcards in the selected group
-      if (selectedGroupIndex !== null) {
-  const updatedGroups = [...flashcardGroups];
-  const group = updatedGroups[selectedGroupIndex].flashcards.push(newFlashcard);
-      setFlashcardGroups(updatedGroups);
+      // Sending the POST request to create a new flashcard
+      axios
+        .post(
+          "http://localhost:8080/api/flashcard/create", // Backend API endpoint
+          newFlashcardDTO,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${localStorage.getItem("jwtToken")}`,
+            },
+          }
+        )
+        .then((response) => {
+          // Update the state with the newly created flashcard
+          const createdFlashcard = response.data;
 
-      // Reset input fields and close modal
-      setNewWord("");
-      setNewDefinition("");
-      setIsCardModalVisible(false);
-      message.success("字卡創建成功！");
+          const updatedGroups = [...flashcardGroups];
+          updatedGroups[selectedGroupIndex].flashcards?.push(createdFlashcard); // Add the new flashcard to the group
+
+          setFlashcardGroups(updatedGroups); // Update the flashcard groups state
+
+          // Clear the input fields and close the modal
+          setNewWord("");
+          setNewDefinition("");
+          setIsCardModalVisible(false);
+
+          message.success("字卡創建成功！");
+        })
+        .catch(() => {
+          message.error("創建字卡失敗，請稍後再試！");
+        })
+        .finally(() => setLoading(false));
     } else {
       message.error("請填寫字卡的單字和意思，並選擇一個組別");
     }
-  };
+  }, [selectedGroupIndex, newWord, newDefinition, flashcardGroups]);
 
   // 將字卡添加/移除收藏庫
-  const toggleFavorite = (cardIndex: number) => {
+  // 将 toggleFavorite 函数优化
+  const toggleFavorite = (cardId: number) => {
     if (selectedGroupIndex !== null) {
       const updatedGroups = [...flashcardGroups];
       const group = updatedGroups[selectedGroupIndex];
 
-      const card = group.flashcards[cardIndex];
-
-      // 如果字卡已經在收藏庫中，則移除；如果不在收藏庫中，則加入
-      const isFavorite = group.favoriteFlashcards.includes(card);
-
-      if (isFavorite) {
-        group.favoriteFlashcards = group.favoriteFlashcards.filter(
-          (favCard) => favCard !== card
-        );
-        message.success("字卡已從收藏庫中移除！");
-      } else {
-        group.favoriteFlashcards.push(card);
-        message.success("字卡已加入收藏庫！");
+      const card = group.flashcards?.find(
+        (card) => card.flashcardId === cardId
+      );
+      if (!card) {
+        message.error("字卡未找到，無法更新收藏狀態");
+        return;
       }
 
-      // 更新字卡組
+      // 切换收藏状态
+      const newFavoriteStatus = !card.isFavorite;
+      card.isFavorite = newFavoriteStatus;
+
+      // 更新本地状态
       setFlashcardGroups(updatedGroups);
+      message.success(
+        newFavoriteStatus ? "字卡已加入收藏庫！" : "字卡已從收藏庫移除！"
+      );
+
+      // 发起 API 请求更新收藏状态
+      axios
+        .post("http://localhost:8080/api/flashcard/toggle-favorite", null, {
+          params: {
+            flashcardId: card.flashcardId,
+            isFavorite: newFavoriteStatus,
+          },
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("jwtToken")}`,
+          },
+        })
+        .then(() => {
+          console.log("字卡收藏狀態已更新", card.flashcardId);
+        })
+        .catch((err) => {
+          console.error("更新收藏狀態失敗", err);
+          // 如果更新失败，恢复原来的状态
+          card.isFavorite = !newFavoriteStatus;
+          setFlashcardGroups(updatedGroups);
+          message.error("更新收藏狀態失敗，請稍後再試！");
+        });
     }
   };
 
@@ -242,7 +354,7 @@ const FlashCardPage: React.FC<FlashCardPageProps> = ({ userId }) => {
     if (selectedGroupIndex !== null) {
       const currentGroup = flashcardGroups[selectedGroupIndex];
       if (learningMode === "sequence") {
-        if (currentCardIndex < currentGroup.flashcards.length - 1) {
+        if (currentCardIndex < currentGroup.flashcards?.length - 1) {
           setCurrentCardIndex(currentCardIndex + 1);
         } else {
           message.success("已完成所有字卡！");
@@ -250,7 +362,7 @@ const FlashCardPage: React.FC<FlashCardPageProps> = ({ userId }) => {
         }
       } else if (learningMode === "random") {
         const randomIndex = Math.floor(
-          Math.random() * currentGroup.flashcards.length
+          Math.random() * currentGroup.flashcards!.length
         );
         setCurrentCardIndex(randomIndex);
       }
@@ -258,29 +370,73 @@ const FlashCardPage: React.FC<FlashCardPageProps> = ({ userId }) => {
   };
 
   // 刪除字卡
-  const handleDeleteCard = (cardIndex: number) => {
+  const handleDeleteCard = async (cardId: number) => {
     if (selectedGroupIndex !== null) {
       const updatedGroups = [...flashcardGroups];
       const currentGroup = updatedGroups[selectedGroupIndex];
 
-      // 刪除字卡
-      currentGroup.flashcards.splice(cardIndex, 1);
+      // 找到当前要删除的字卡
+      const cardToDelete = currentGroup.flashcards?.find(
+        (card) => card.flashcardId === cardId
+      );
 
-      // 如果刪除的是當前卡片
-      if (cardIndex === currentCardIndex) {
-        if (currentGroup.flashcards.length === 0) {
-          // 如果刪除後字卡組為空，清空 currentCardIndex
-          setCurrentCardIndex(0);
-          message.warning("字卡組為空，請添加字卡。");
-        } else if (cardIndex === currentGroup.flashcards.length) {
-          // 如果刪除的是最後一張卡片，重置到最後一張
-          setCurrentCardIndex(currentGroup.flashcards.length - 1);
-        }
+      if (!cardToDelete) {
+        message.error("字卡未找到，無法刪除");
+        return;
       }
 
-      // 更新字卡組數據
-      setFlashcardGroups(updatedGroups);
-      message.success("字卡已刪除！");
+      Modal.confirm({
+        title: "刪除字卡",
+        content: `確認要刪除字卡 "${cardToDelete.word}" 嗎？`,
+        onOk: async () => {
+          try {
+            // 获取 JWT token
+            const jwtToken = localStorage.getItem("jwtToken");
+            if (!jwtToken) {
+              message.error("請先登入！");
+              return;
+            }
+
+            // 调用 API 删除字卡
+            const response = await axios.delete(
+              `http://localhost:8080/api/flashcard/delete?flashcardId=${cardToDelete.flashcardId}`,
+              {
+                headers: {
+                  Authorization: `Bearer ${jwtToken}`,
+                },
+              }
+            );
+
+            if (response.status === 200) {
+              // 删除字卡后，更新本地状态
+              currentGroup.flashcards = currentGroup.flashcards?.filter(
+                (card) => card.flashcardId !== cardToDelete.flashcardId
+              );
+
+              setFlashcardGroups(updatedGroups);
+              message.success("字卡刪除成功！");
+
+              // 处理删除后当前卡片的边界情况
+              if (currentGroup.flashcards.length === 0) {
+                setCurrentCardIndex(0);
+                message.warning("字卡組為空，請添加字卡。");
+              }
+            } else {
+              throw new Error("刪除字卡失敗");
+            }
+          } catch (error: any) {
+            console.error(
+              "刪除字卡時發生錯誤:",
+              error.response ? error.response.data : error.message
+            );
+            message.error(
+              `刪除字卡時發生錯誤：${
+                error.response ? error.response.data : error.message
+              }`
+            );
+          }
+        },
+      });
     }
   };
 
@@ -336,8 +492,12 @@ const FlashCardPage: React.FC<FlashCardPageProps> = ({ userId }) => {
       ? flashcardGroups[selectedGroupIndex].favoriteFlashcards
       : [];
 
+  // Get the current flashcards list
+  // Get the current flashcards list based on whether we are viewing favorites or not
   const renderCardList = isViewingFavorites
-    ? currentFavorites
+    ? (flashcardGroups[selectedGroupIndex]?.flashcards || []).filter(
+        (card) => card.isFavorite // 只顯示收藏的字卡
+      )
     : flashcardGroups[selectedGroupIndex]?.flashcards || [];
 
   return (
@@ -413,7 +573,7 @@ const FlashCardPage: React.FC<FlashCardPageProps> = ({ userId }) => {
               style={{ marginTop: "20px", flex: 1, overflowY: "auto" }}
               bordered
               dataSource={flashcardGroups}
-              renderItem={(group) => (
+              renderItem={(group, index) => (
                 <List.Item
                   key={group.groupId}
                   style={{ display: "flex", justifyContent: "space-between" }}
@@ -466,15 +626,17 @@ const FlashCardPage: React.FC<FlashCardPageProps> = ({ userId }) => {
           >
             <div style={{ textAlign: "center" }}>
               <Text style={{ color: "#923c3c" }}>
-                請選擇字卡組別來開始學習或查看收藏庫。
+                請先選擇字卡組別來開始學習或查看收藏庫。
               </Text>
             </div>
 
             {selectedGroupIndex !== null && renderCardList.length > 0 && (
               <Card
-                title={`字卡 ${currentCardIndex + 1} / ${
-                  renderCardList.length
-                }`}
+                title={
+                  isViewingFavorites
+                    ? `收藏 ${currentCardIndex + 1} / ${renderCardList.length}`
+                    : `字卡 ${currentCardIndex + 1} / ${renderCardList.length}`
+                }
                 style={{
                   width: 400,
                   margin: "0 auto",
@@ -531,26 +693,27 @@ const FlashCardPage: React.FC<FlashCardPageProps> = ({ userId }) => {
                 <div style={{ marginTop: "20px" }}>
                   <Button
                     type={
-                      flashcardGroups[
-                        selectedGroupIndex
-                      ].favoriteFlashcards.includes(
-                        renderCardList[currentCardIndex]
-                      )
-                        ? "default"
-                        : "primary"
+                      renderCardList[currentCardIndex] &&
+                      renderCardList[currentCardIndex].isFavorite
+                        ? "default" // 已收藏
+                        : "primary" // 未收藏
                     }
-                    onClick={() => toggleFavorite(currentCardIndex)}
+                    onClick={() => {
+                      const currentCardId =
+                        renderCardList[currentCardIndex]?.flashcardId; // 获取当前字卡的 ID
+                      console.log("当前字卡 ID:", currentCardId); // 打印查看当前字卡 ID
+                      if (currentCardId) {
+                        toggleFavorite(currentCardId); // 传递给 toggleFavorite 函数
+                      }
+                    }}
                     style={{
                       width: "100%",
-                      backgroundColor: "#ffeb3b", // 黃色，適合顯示收藏狀態
+                      backgroundColor: "#ffeb3b", // 设置按钮颜色
                       borderColor: "#ffeb3b",
                     }}
                   >
-                    {flashcardGroups[
-                      selectedGroupIndex
-                    ].favoriteFlashcards.includes(
-                      renderCardList[currentCardIndex]
-                    )
+                    {renderCardList[currentCardIndex] &&
+                    renderCardList[currentCardIndex].isFavorite
                       ? "取消收藏"
                       : "加入收藏"}
                   </Button>
@@ -560,7 +723,14 @@ const FlashCardPage: React.FC<FlashCardPageProps> = ({ userId }) => {
                   <Button
                     type="danger"
                     icon={<DeleteOutlined />}
-                    onClick={() => handleDeleteCard(currentCardIndex)}
+                    onClick={() => {
+                      const currentCardId =
+                        renderCardList[currentCardIndex]?.flashcardId; // 获取当前字卡的 ID
+                      console.log("当前字卡 ID:", currentCardId); // 打印查看当前字卡 ID
+                      if (currentCardId) {
+                        handleDeleteCard(currentCardId); // 传递给 handleDeleteCard 函数
+                      }
+                    }}
                     style={{
                       width: "100%",
                       backgroundColor: "#ff6666",

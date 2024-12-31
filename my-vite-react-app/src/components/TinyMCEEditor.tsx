@@ -144,7 +144,6 @@ const TinyMCEEditor: React.FC<TinyMCEEditorProps> = ({ value, onChange }) => {
           },
         }}
       />
-      <button onClick={handleEditorSubmit}>提交编辑内容</button>
     </div>
   );
 };

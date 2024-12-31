@@ -3,7 +3,7 @@ import { Layout } from "antd";
 import CustomHeader from "../custom-header/CustomHeader"; // 保留自定义 Header
 import DocumentsList from "./DocumentsList"; // 引入 DocumentList 组件
 import DocumentContent from "./DocumentContent"; // 引入 DocumentDetail 组件
-
+import DocumentForm from "./DocumentForm"; // 引入 DocumentForm 组件
 const { Sider, Content } = Layout;
 
 interface DocumentsPageProps {
@@ -12,10 +12,24 @@ interface DocumentsPageProps {
 
 const DocumentsPage: React.FC<DocumentsPageProps> = ({ userId }) => {
   const [selectedDocument, setSelectedDocument] = useState<number | null>(null); // 当前选择的文档 ID
+  const [isCreatingDocument, setIsCreatingDocument] = useState<boolean>(false); // 是否在创建文档
+  const [groupId, setGroupId] = useState<number | undefined>(undefined);
+
+  // 子组件1回调，接收并设置 groupId
+  const handleGroupIdChange = (id: number) => {
+    setGroupId(id); // 更新父组件的状态
+  };
 
   // 选择文档时的回调
   const handleSelectDocument = (id: number) => {
     setSelectedDocument(id);
+    setIsCreatingDocument(false);
+  };
+
+  // 切换到创建文档模式
+  const handleCreateNewDocument = () => {
+    setIsCreatingDocument(true);
+    setSelectedDocument(null); // 清除已选择的文档
   };
 
   return (
@@ -48,6 +62,8 @@ const DocumentsPage: React.FC<DocumentsPageProps> = ({ userId }) => {
             <DocumentsList
               userId={userId}
               onSelectDocument={handleSelectDocument} // Pass the selection handler
+              onCreateDocument={handleCreateNewDocument} // 传递创建文档的处理函数
+              onGroupIdChange={handleGroupIdChange}
             />
           </div>
         </Sider>
@@ -62,11 +78,13 @@ const DocumentsPage: React.FC<DocumentsPageProps> = ({ userId }) => {
               borderRadius: "8px",
             }}
           >
-            {/* Display document detail if one is selected */}
-            {selectedDocument ? (
+            {/* If creating a new document, show DocumentForm */}
+            {isCreatingDocument ? (
+              <DocumentForm userId={userId} groupId={groupId} />
+            ) : selectedDocument ? (
               <DocumentContent documentId={selectedDocument} />
             ) : (
-              <div>请选择一个文档以查看详情</div>
+              <div>請選擇一個文檔來查看詳情</div>
             )}
           </Content>
         </Layout>
